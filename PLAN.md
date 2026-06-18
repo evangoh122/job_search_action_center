@@ -25,19 +25,35 @@ A job matching any of these is dropped and logged. This list lives in **one** pl
 (`config/exclusions.json`) and is imported by every component. (Today it's duplicated in
 `coder_instructions.md` and *missing* from `Target-list.json` — fix in §7.)
 
-## 3. Three automation tiers (the key design)
+## 3. Two parallel tracks per qualified job
 
-Routing is decided **after** scoring and the exclusion gate.
+Routing is decided **after** scoring and the exclusion gate. For any job above `DRAFT_FLOOR`,
+**two tracks fire in parallel** — applying and outreach happen at the same time, not either/or.
+
+### Track 1 — Apply
 
 | Tier | Trigger | Action | Human role |
 |------|---------|--------|-----------|
 | **A — Auto-apply** | `final_score ≥ 92` AND simple ATS (Greenhouse/Lever/Workday-easy) AND role title in allowlist AND under daily cap | Tailor resume → submit automatically | Review log after |
 | **B — Draft & review** | `78 ≤ final_score < 92`, OR high score on a complex/login-walled ATS | Tailor resume + cover note → push to review queue | Approve & click submit |
-| **C — Networking** | Strategically interesting company but weak/no direct-apply path, or `final_score < 78` at a priority-1/2 target | Identify people to reach (recruiters, hiring managers, alumni, 2nd-degree) → draft outreach | Send / personalize |
 
-Rationale: auto-apply only where the ATS is low-risk and the match is near-certain; everything
-else stays human-in-the-loop. This is what keeps the system from torching your reputation or
-getting accounts banned.
+### Track 2 — Outreach (runs alongside Track 1)
+
+For the same qualified job, identify **both** the hiring manager **and** a recruiter at the
+company, find/verify their emails, and send a personalized email to each — concurrently with the
+application. Companies with a weak/no direct-apply path still get this track (this is the old
+"Tier C — networking", now promoted to run for every qualified job).
+
+| Step | How |
+|------|-----|
+| Find people | LinkedIn (read-only): hiring manager (team lead for the role) + recruiter/talent at the company |
+| Find email | Email-finder API (Hunter/Apollo/RocketReach/Proxycurl) or pattern-guess + verify |
+| Draft | Personalized per person+role (HM vs recruiter get different angles) |
+| Send | Gmail — **throttled**, **draft-and-approve** until deliverability is tuned, then auto for high-confidence |
+
+Rationale: auto-actions only where risk is low and match is near-certain; everything else stays
+human-in-the-loop. Cold email is **rate-limited and personalized** so the personal Gmail account
+isn't flagged as spam or suspended.
 
 ## 4. Pipeline
 

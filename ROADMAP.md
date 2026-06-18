@@ -19,10 +19,11 @@ phase N+1 until N is approved.
 
 | Integration | Phase | Purpose | Auth / access | Risk |
 |-------------|-------|---------|---------------|------|
-| **MyCareersFuture** | 1 | Primary SG job source | Public API (`api.mycareersfuture.gov.sg`) | Low |
-| **LinkedIn** | 1 (jobs), 4 (people) | Jobs + networking targets | 3rd-party (Apify) — no official API | **High (ToS)** — read-only, throttle, human-in-loop |
+| **MyCareersFuture** | 1 ✅ | Primary SG job source | Public API (`api.mycareersfuture.gov.sg`) | Low |
+| **LinkedIn** | 1 (jobs, optional) | Supplemental jobs only | 3rd-party (Apify) or free guest endpoint | **High (ToS)** — read-only, throttle. Not required for outreach. |
 | **HubSpot** | 3 | CRM / tracking backbone (companies, contacts, application pipeline) | OAuth (MCP available) | Low |
-| **Gmail** | 4 | Outreach drafts/sends | OAuth (MCP available) | Med — drafts first, send behind approval |
+| **Hunter.io** | 4 | Recruiter + hiring-manager people & verified emails (Domain Search) | `HUNTER_API_KEY` | Low |
+| **Gmail** | 4 | Outreach drafts (human-approved send) | OAuth (compose scope) | Med — drafts only at first |
 | **Greenhouse / Lever** | 6 | Tier-A auto-apply targets | Public application endpoints | **High** — `DRY_RUN` first, simple ATS only |
 
 ## Phases
@@ -55,14 +56,20 @@ stages (`new → queued → drafted → applied → interview → closed`).
 **Builds:** `store/hubspot_repo.py` behind the existing Repository interface; sync job.
 **Exit:** a scored job appears in HubSpot with the right stage; idempotent sync (no dupes).
 
-### Phase 4 — Tier C: networking (LinkedIn + HubSpot + Gmail)
-**Goal:** lowest-risk outbound first. For target companies, identify people to reach
-(recruiters, hiring managers, alumni, 2nd-degree), store as HubSpot contacts, **draft** Gmail
-outreach.
-**Builds:** `network/find_people.py` (LinkedIn, read-only), `network/outreach.py` (Gmail
-drafts), contact dedupe.
-**Exit:** for a sample company, contacts land in HubSpot and a personalized Gmail **draft**
-exists — nothing sent automatically.
+### Phase 4 — Outreach track (Hunter.io + Gmail), parallel to applying
+**Goal:** for every *qualified* job (so depends on Phase 2 scoring), email **both** a recruiter
+and the hiring manager at the company — concurrently with the application.
+**People + email source:** Hunter.io **Domain Search** returns people with roles + verified
+emails for a company domain — filter for recruiter/talent and hiring-manager roles. (No LinkedIn
+needed for this track.) Decision: Hunter.io for emails.
+**Send:** Gmail **drafts** — system creates personalized, role-specific drafts (HM vs recruiter
+get different angles); **user approves & sends**. Throttled. No auto-send until deliverability is
+tuned. Decision: Gmail drafts, human-approved.
+**Builds:** `network/email_finder.py` (Hunter client, injectable HTTP), `network/outreach.py`
+(draft templates + Gmail draft creation), contact dedupe + daily outreach cap (15).
+**Keys needed:** `HUNTER_API_KEY` in `.env`; Gmail OAuth (compose scope).
+**Exit:** for a sample qualified job, the system produces personalized Gmail **drafts** to a
+recruiter and a hiring manager — nothing sent automatically.
 
 ### Phase 5 — Tier B: drafted applications
 **Goal:** resume tailoring + drafted applications into a review queue.
