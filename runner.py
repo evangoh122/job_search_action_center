@@ -10,14 +10,23 @@ import uuid
 
 from exclusions import is_excluded_company
 from models import Job, RawJob
+from sources.mycareersfuture import MyCareersFutureSource
 from store.repository import Repository, SqliteRepository
 
 logger = logging.getLogger(__name__)
 
+# Small curated default; full role list lives in Target-list.json (Phase 2 will use it).
+DEFAULT_TERMS = [
+    "data scientist",
+    "machine learning engineer",
+    "ai engineer",
+    "data analyst",
+]
+
 
 def sources() -> list[RawJob]:
-    """Phase 1 will populate this from MyCareersFuture / LinkedIn."""
-    return []
+    """Live job sources. MyCareersFuture (SG) now; LinkedIn slots in here next."""
+    return MyCareersFutureSource(DEFAULT_TERMS, max_age_days=1).fetch()
 
 
 def normalize(raw: RawJob) -> Job:
@@ -42,10 +51,11 @@ def score(job: Job) -> float | None:
     return None
 
 
-def run(repo: Repository | None = None) -> dict[str, int]:
+def run(repo: Repository | None = None, jobs: list[RawJob] | None = None) -> dict[str, int]:
     repo = repo or SqliteRepository()
+    raws = jobs if jobs is not None else sources()
     processed = stored = excluded = skipped = 0
-    for raw in sources():
+    for raw in raws:
         processed += 1
         if not (raw.company or "").strip():
             # Unidentifiable company — never act on it.
