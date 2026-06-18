@@ -24,6 +24,7 @@ class Job(BaseModel):
     url: str
     ats_type: str | None = None
     posted_at: datetime | None = None
+    description: str = ""
     score: float | None = None
     tier: str | None = None
     status: str = "new"

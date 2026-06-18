@@ -8,8 +8,12 @@ from __future__ import annotations
 import logging
 import uuid
 
+from datetime import datetime, timedelta
+
 from exclusions import is_excluded_company
 from models import Job, RawJob
+from routing import apply_tier, should_outreach
+from scoring import final_score
 from sources.mycareersfuture import MyCareersFutureSource
 from store.repository import Repository, SqliteRepository
 
@@ -43,33 +47,35 @@ def normalize(raw: RawJob) -> Job:
         url=url,
         ats_type=raw.ats_type,
         posted_at=raw.posted_at,
+        description=raw.description,
     )
 
 
-def score(job: Job) -> float | None:
-    """Phase 2 replaces this with the real scoring formula."""
-    return None
+def _within_24h(raw: RawJob) -> bool:
+    return raw.posted_at is not None and raw.posted_at >= datetime.now() - timedelta(days=1)
 
 
 def run(repo: Repository | None = None, jobs: list[RawJob] | None = None) -> dict[str, int]:
     repo = repo or SqliteRepository()
     raws = jobs if jobs is not None else sources()
-    processed = stored = excluded = skipped = 0
+    counts = {"processed": 0, "stored": 0, "excluded": 0, "skipped": 0, "outreach": 0}
     for raw in raws:
-        processed += 1
+        counts["processed"] += 1
         if not (raw.company or "").strip():
-            # Unidentifiable company — never act on it.
             logger.warning("Skipping job with no company: %s", raw.title)
-            skipped += 1
+            counts["skipped"] += 1
             continue
         if is_excluded_company(raw.company):
-            excluded += 1
+            counts["excluded"] += 1
             continue
         job = normalize(raw)
-        job.score = score(job)
+        job.score = final_score(job, within_24h=_within_24h(raw))
+        job.tier = apply_tier(job)
+        if should_outreach(job):
+            counts["outreach"] += 1
         repo.upsert_job(job)
-        stored += 1
-    return {"processed": processed, "stored": stored, "excluded": excluded, "skipped": skipped}
+        counts["stored"] += 1
+    return counts
 
 
 def main() -> None:
@@ -77,7 +83,8 @@ def main() -> None:
     result = run()
     print(
         f"processed={result['processed']} stored={result['stored']} "
-        f"excluded={result['excluded']} skipped={result['skipped']}"
+        f"excluded={result['excluded']} skipped={result['skipped']} "
+        f"outreach={result['outreach']}"
     )
 
 
