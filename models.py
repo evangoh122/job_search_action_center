@@ -36,6 +36,18 @@ class Contact(BaseModel):
     name: str
     company_canonical: str
     role: str = ""
+    role_type: str = ""  # "recruiter" | "hiring_manager" | ""
     linkedin_url: str = ""
     email: str = ""
+    confidence: int = 0  # Hunter email confidence 0-100
     notes: str = ""
+
+
+class EmailDraft(BaseModel):
+    job_id: str
+    company: str
+    to_email: str
+    to_name: str
+    role_type: str  # "recruiter" | "hiring_manager"
+    subject: str
+    body: str
