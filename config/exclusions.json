@@ -1,0 +1,23 @@
+{
+  "version": "1.0",
+  "last_updated": "2026-06-19",
+  "reason": "Current employer and affiliates - NEVER apply, email, scrape, or contact. This is the single source of truth for exclusions; all components import from here.",
+  "excluded_companies": [
+    {
+      "canonical": "Sumitomo Mitsui Banking Corporation",
+      "aliases": ["SMBC", "Sumitomo Mitsui Banking", "SMBC Group"]
+    },
+    {
+      "canonical": "Sumitomo Mitsui Financial Group",
+      "aliases": ["SMFG"]
+    },
+    {
+      "canonical": "SMBC Nikko Securities",
+      "aliases": ["SMBC Nikko", "Nikko Securities"]
+    },
+    {
+      "canonical": "Japan Research Institute",
+      "aliases": ["JRI", "The Japan Research Institute"]
+    }
+  ]
+}

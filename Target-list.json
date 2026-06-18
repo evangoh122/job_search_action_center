@@ -1,0 +1,293 @@
+{
+  "data_and_ai_companies": {
+    "version": "2.0",
+    "last_updated": "2026-06-18",
+    "description": "Target companies for Data Analytics, Data Science, AI Solutions, Solutions Architecture, and AI/Data Governance roles",
+    
+    "target_categories": {
+      "big_tech_cloud": {
+        "priority": 1,
+        "companies": [
+          {"name": "Google", "match_threshold": 85},
+          {"name": "Amazon", "match_threshold": 85},
+          {"name": "Microsoft", "match_threshold": 85},
+          {"name": "AWS", "match_threshold": 85},
+          {"name": "Azure", "match_threshold": 85},
+          {"name": "GCP", "match_threshold": 85}
+        ],
+        "auto_apply_threshold": 90,
+        "description": "Major cloud providers with massive data and AI teams"
+      },
+      
+      "data_platforms": {
+        "priority": 2,
+        "companies": [
+          {"name": "Databricks", "match_threshold": 85},
+          {"name": "Snowflake", "match_threshold": 85},
+          {"name": "Palantir", "match_threshold": 85},
+          {"name": "Elastic", "match_threshold": 80},
+          {"name": "Confluent", "match_threshold": 80},
+          {"name": "MongoDB", "match_threshold": 80}
+        ],
+        "auto_apply_threshold": 90,
+        "description": "Leading data platform and infrastructure companies"
+      },
+      
+      "ai_ml_companies": {
+        "priority": 3,
+        "companies": [
+          {"name": "OpenAI", "match_threshold": 90},
+          {"name": "Anthropic", "match_threshold": 90},
+          {"name": "DeepMind", "match_threshold": 90},
+          {"name": "Hugging Face", "match_threshold": 85},
+          {"name": "Cohere", "match_threshold": 85},
+          {"name": "Mistral AI", "match_threshold": 85},
+          {"name": "Stability AI", "match_threshold": 80},
+          {"name": "Midjourney", "match_threshold": 80}
+        ],
+        "auto_apply_threshold": 92,
+        "description": "Pure-play AI and machine learning companies"
+      },
+      
+      "consulting_professional_services": {
+        "priority": 4,
+        "companies": [
+          {"name": "McKinsey & Company", "match_threshold": 85},
+          {"name": "BCG", "match_threshold": 85},
+          {"name": "Bain & Company", "match_threshold": 85},
+          {"name": "Deloitte", "match_threshold": 80},
+          {"name": "PwC", "match_threshold": 80},
+          {"name": "EY", "match_threshold": 80},
+          {"name": "KPMG", "match_threshold": 80},
+          {"name": "Accenture", "match_threshold": 85},
+          {"name": "IBM Consulting", "match_threshold": 85}
+        ],
+        "auto_apply_threshold": 90,
+        "description": "Top consulting firms with data/AI practices"
+      },
+      
+      "fintech_data_ai": {
+        "priority": 5,
+        "companies": [
+          {"name": "Stripe", "match_threshold": 80},
+          {"name": "PayPal", "match_threshold": 80},
+          {"name": "Block", "match_threshold": 80},
+          {"name": "Plaid", "match_threshold": 80},
+          {"name": "Socure", "match_threshold": 80},
+          {"name": "Ramp", "match_threshold": 80},
+          {"name": "Mercury", "match_threshold": 80}
+        ],
+        "auto_apply_threshold": 90,
+        "description": "Fintech companies with strong data science needs"
+      },
+      
+      "financial_services": {
+        "priority": 6,
+        "companies": [
+          {"name": "Goldman Sachs", "match_threshold": 80},
+          {"name": "JPMorgan Chase", "match_threshold": 80},
+          {"name": "Morgan Stanley", "match_threshold": 80},
+          {"name": "Citigroup", "match_threshold": 80},
+          {"name": "Bank of America", "match_threshold": 80},
+          {"name": "HSBC", "match_threshold": 80},
+          {"name": "BlackRock", "match_threshold": 85},
+          {"name": "Fidelity", "match_threshold": 80}
+        ],
+        "auto_apply_threshold": 90,
+        "description": "Financial institutions with large data/AI transformation teams"
+      },
+      
+      "data_governance_ai_compliance": {
+        "priority": 7,
+        "companies": [
+          {"name": "OneTrust", "match_threshold": 85},
+          {"name": "Collibra", "match_threshold": 85},
+          {"name": "Alation", "match_threshold": 85},
+          {"name": "Informatica", "match_threshold": 80},
+          {"name": "Talend", "match_threshold": 80},
+          {"name": "BigID", "match_threshold": 85},
+          {"name": "Securiti.ai", "match_threshold": 85}
+        ],
+        "auto_apply_threshold": 90,
+        "description": "Data governance, privacy, and AI compliance platforms"
+      },
+      
+      "data_analytics_bi": {
+        "priority": 8,
+        "companies": [
+          {"name": "Tableau", "match_threshold": 80},
+          {"name": "Power BI", "match_threshold": 80},
+          {"name": "Looker", "match_threshold": 80},
+          {"name": "Domo", "match_threshold": 80},
+          {"name": "Qlik", "match_threshold": 80},
+          {"name": "Sisense", "match_threshold": 75}
+        ],
+        "auto_apply_threshold": 85,
+        "description": "Business intelligence and analytics platforms"
+      },
+      
+      "solutions_integrators": {
+        "priority": 9,
+        "companies": [
+          {"name": "Capgemini", "match_threshold": 75},
+          {"name": "Infosys", "match_threshold": 75},
+          {"name": "TCS", "match_threshold": 75},
+          {"name": "Wipro", "match_threshold": 75},
+          {"name": "HCLTech", "match_threshold": 75},
+          {"name": "Cognizant", "match_threshold": 75}
+        ],
+        "auto_apply_threshold": 85,
+        "description": "System integrators with data and AI practices"
+      }
+    },
+    
+    "excluded_companies": {
+      "reason": "Current employer and affiliates - NEVER target. Canonical list lives in config/exclusions.json; this inline copy is defense-in-depth only.",
+      "source_of_truth": "config/exclusions.json",
+      "companies": [
+        "Sumitomo Mitsui Banking Corporation",
+        "SMBC",
+        "Sumitomo Mitsui Financial Group",
+        "SMFG",
+        "SMBC Nikko Securities",
+        "Japan Research Institute",
+        "JRI"
+      ]
+    }
+  },
+  
+  "keywords_for_matching": {
+    "primary_skills": [
+      "data analytics",
+      "data science",
+      "machine learning",
+      "artificial intelligence",
+      "AI solutions",
+      "data solutions",
+      "solutions architect",
+      "AI transformation",
+      "data governance",
+      "AI governance",
+      "data engineering",
+      "big data",
+      "data pipeline",
+      "ETL",
+      "data warehouse",
+      "data lake",
+      "data strategy",
+      "AI strategy",
+      "ML engineering",
+      "neural networks",
+      "deep learning",
+      "NLP",
+      "computer vision",
+      "generative AI",
+      "LLM",
+      "large language models",
+      "AI ethics",
+      "responsible AI",
+      "data privacy",
+      "data security",
+      "cloud architecture",
+      "solution design",
+      "enterprise architecture"
+    ],
+    "secondary_skills": [
+      "Python",
+      "R",
+      "SQL",
+      "Scala",
+      "Java",
+      "PyTorch",
+      "TensorFlow",
+      "Keras",
+      "Scikit-learn",
+      "Pandas",
+      "NumPy",
+      "Spark",
+      "Hadoop",
+      "Kafka",
+      "Airflow",
+      "dbt",
+      "Looker",
+      "Tableau",
+      "Power BI",
+      "AWS",
+      "GCP",
+      "Azure",
+      "Kubernetes",
+      "Docker",
+      "CI/CD",
+      "MLOps",
+      "DataOps",
+      "governance frameworks",
+      "DAMA",
+      "GDPR",
+      "CCPA",
+      "HIPAA",
+      "AI regulations"
+    ],
+    "role_titles": [
+      "Data Scientist",
+      "Data Analyst",
+      "Data Engineer",
+      "Machine Learning Engineer",
+      "AI Engineer",
+      "Solutions Architect",
+      "Data Architect",
+      "Enterprise Architect",
+      "AI Architect",
+      "Data Governance Lead",
+      "AI Governance Lead",
+      "Data Strategy Lead",
+      "AI Strategy Lead",
+      "Data Transformation Lead",
+      "AI Transformation Lead",
+      "Chief Data Officer",
+      "Chief AI Officer",
+      "Head of Data",
+      "Head of AI",
+      "VP of Data",
+      "VP of AI",
+      "Director of Data",
+      "Director of AI",
+      "Senior Data Scientist",
+      "Principal Data Scientist",
+      "Staff Data Scientist",
+      "Research Scientist"
+    ],
+    "seniority_titles": {
+      "vp": ["Vice President", "VP", "Senior VP", "SVP"],
+      "director": ["Director", "Senior Director", "Executive Director"],
+      "executive": ["Executive Director", "ED", "Managing Director", "MD"],
+      "leadership": ["Chief", "Head of", "Lead", "Principal", "Staff", "Senior"]
+    }
+  },
+  
+  "scoring_weights": {
+    "company_match": {
+      "category_priority_weight": 0.15,
+      "company_name_match": 0.15,
+      "seniority_level_match": 0.30,
+      "role_title_match": 0.25,
+      "keyword_density": 0.15
+    },
+    "skills_match": {
+      "primary_keyword_match": 0.50,
+      "secondary_keyword_match": 0.25,
+      "experience_years": 0.15,
+      "industry_expertise": 0.10
+    }
+  },
+  
+  "auto_apply_rules": {
+    "min_match_threshold": 90,
+    "max_applications_per_day": 20,
+    "required_keywords_threshold": 3,
+    "preferred_primary_keywords": 5,
+    "time_based_boost": {
+      "hours_threshold": 24,
+      "boost_percentage": 5
+    }
+  }
+}

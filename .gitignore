@@ -1,0 +1,34 @@
+# Secrets — NEVER commit
+.env
+.env.*
+
+# MiMo raw output scratch
+.mimo/_*.md
+*.key
+config/secrets*.json
+
+# Local Claude settings + installed tooling (not project source)
+.claude/settings.local.json
+.claude/skills/
+.claude/hooks/
+.claude/scheduled_tasks.lock
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+.venv/
+venv/
+
+# Data / DB
+data/
+*.duckdb
+*.sqlite
+*.db
+
+# OS
+.DS_Store
+Thumbs.db
