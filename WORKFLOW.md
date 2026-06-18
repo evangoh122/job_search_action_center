@@ -37,5 +37,8 @@ How the three-tier system runs each phase of `ROADMAP.md`. Source of truth for *
 
 ## Status
 
-- **Phase 0** — exclusion gate ✅ (19 tests green, branch-variant hardened). Remaining:
-  models, repo, config, runner stub.
+- **Phase 0** — Foundation + exclusion gate ✅ shipped
+- **Phase 1** — MyCareersFuture source ✅ shipped (live, no token)
+- **Phase 2** — Scoring + routing (two parallel tracks) ✅ shipped
+- **Phase 3** — HubSpot tracking backbone ✅ shipped (mock-tested; needs `HUBSPOT_TOKEN` for live)
+- 40 tests passing. Next: Phase 4 (Hunter.io + Gmail outreach) — needs `HUNTER_API_KEY` + Gmail auth.
