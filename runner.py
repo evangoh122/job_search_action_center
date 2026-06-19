@@ -76,6 +76,19 @@ def _run_outreach(job, repo, finder, drafter, applicant_name, day) -> int:
     return drafted
 
 
+def _run_apply_a(job, repo, auto_applier, day) -> str:
+    """Track 1, Tier A: gated auto-apply (daily cap). Defaults to DRY_RUN via the applier."""
+    if auto_applier is None:
+        return "disabled"
+    if repo.count_actions("auto_apply", day) >= DAILY_CAPS["auto_apply"]:
+        logger.warning("Daily auto-apply cap reached (%s)", DAILY_CAPS["auto_apply"])
+        return "capped"
+    result = auto_applier.apply(job)
+    if result in ("submitted", "dry_run"):
+        repo.incr_action("auto_apply", day)
+    return result
+
+
 def _run_apply_b(job, repo, apply_queue, base_summary, applicant_name, day) -> int:
     """Track 1, Tier B: tailor a cover letter and queue it for review (daily drafts cap)."""
     if apply_queue is None:
@@ -94,6 +107,7 @@ def run(
     finder=None,
     drafter=None,
     apply_queue=None,
+    auto_applier=None,
     applicant_name: str = "",
     base_summary: str = "",
 ) -> dict[str, int]:
@@ -119,7 +133,8 @@ def run(
 
         # Track 1 — apply
         if job.tier == "A":
-            counts["tier_a"] += 1  # auto-apply handled in Phase 6
+            counts["tier_a"] += 1
+            _run_apply_a(job, repo, auto_applier, day)
         elif job.tier == "B":
             counts["app_drafts"] += _run_apply_b(
                 job, repo, apply_queue, base_summary, applicant_name, day
@@ -155,10 +170,25 @@ def main() -> None:
     import os
 
     finder, drafter = _build_outreach_from_env()
+
+    # Tier A auto-apply: DRY_RUN unless AUTO_APPLY_LIVE=true is explicitly set.
+    from apply.auto_apply import AutoApplier
+    from models import Applicant
+
+    applicant = Applicant(
+        name=os.environ.get("APPLICANT_NAME", ""),
+        email=os.environ.get("APPLICANT_EMAIL", ""),
+        resume_url=os.environ.get("RESUME_URL", ""),
+        linkedin_url=os.environ.get("APPLICANT_LINKEDIN", ""),
+    )
+    dry_run = os.environ.get("AUTO_APPLY_LIVE", "").lower() != "true"
+    auto_applier = AutoApplier(applicant, dry_run=dry_run)
+
     result = run(
         finder=finder,
         drafter=drafter,
         apply_queue=ApplicationDraftQueue(),
+        auto_applier=auto_applier,
         applicant_name=os.environ.get("APPLICANT_NAME", ""),
         base_summary=os.environ.get("RESUME_SUMMARY", ""),
     )

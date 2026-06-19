@@ -53,6 +53,14 @@ class EmailDraft(BaseModel):
     body: str
 
 
+class Applicant(BaseModel):
+    name: str
+    email: str
+    resume_url: str = ""
+    phone: str = ""
+    linkedin_url: str = ""
+
+
 class ApplicationDraft(BaseModel):
     job_id: str
     company: str
