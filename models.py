@@ -51,3 +51,13 @@ class EmailDraft(BaseModel):
     role_type: str  # "recruiter" | "hiring_manager"
     subject: str
     body: str
+
+
+class ApplicationDraft(BaseModel):
+    job_id: str
+    company: str
+    title: str
+    url: str
+    cover_letter: str
+    matched_keywords: list[str] = []
+    status: str = "drafted"  # drafted -> approved -> applied

@@ -10,6 +10,8 @@ import uuid
 
 from datetime import datetime, timedelta
 
+from apply.draft import ApplicationDraftQueue
+from apply.tailor import tailor
 from config import DAILY_CAPS
 from exclusions import is_excluded_company
 from models import Job, RawJob
@@ -74,18 +76,32 @@ def _run_outreach(job, repo, finder, drafter, applicant_name, day) -> int:
     return drafted
 
 
+def _run_apply_b(job, repo, apply_queue, base_summary, applicant_name, day) -> int:
+    """Track 1, Tier B: tailor a cover letter and queue it for review (daily drafts cap)."""
+    if apply_queue is None:
+        return 0
+    if repo.count_actions("drafts", day) >= DAILY_CAPS["drafts"]:
+        logger.warning("Daily application-draft cap reached (%s)", DAILY_CAPS["drafts"])
+        return 0
+    apply_queue.add(tailor(job, base_summary, applicant_name))
+    repo.incr_action("drafts", day)
+    return 1
+
+
 def run(
     repo: Repository | None = None,
     jobs: list[RawJob] | None = None,
     finder=None,
     drafter=None,
+    apply_queue=None,
     applicant_name: str = "",
+    base_summary: str = "",
 ) -> dict[str, int]:
     repo = repo or SqliteRepository()
     raws = jobs if jobs is not None else sources()
     day = datetime.now().date().isoformat()
     counts = {"processed": 0, "stored": 0, "excluded": 0, "skipped": 0,
-              "qualified": 0, "drafts": 0}
+              "qualified": 0, "tier_a": 0, "app_drafts": 0, "emails": 0}
     for raw in raws:
         counts["processed"] += 1
         if not (raw.company or "").strip():
@@ -100,9 +116,19 @@ def run(
         job.tier = apply_tier(job)
         repo.upsert_job(job)
         counts["stored"] += 1
-        if should_outreach(job):  # Track 2 fires in parallel with applying
+
+        # Track 1 — apply
+        if job.tier == "A":
+            counts["tier_a"] += 1  # auto-apply handled in Phase 6
+        elif job.tier == "B":
+            counts["app_drafts"] += _run_apply_b(
+                job, repo, apply_queue, base_summary, applicant_name, day
+            )
+
+        # Track 2 — outreach (parallel)
+        if should_outreach(job):
             counts["qualified"] += 1
-            counts["drafts"] += _run_outreach(job, repo, finder, drafter, applicant_name, day)
+            counts["emails"] += _run_outreach(job, repo, finder, drafter, applicant_name, day)
     return counts
 
 
@@ -130,12 +156,17 @@ def main() -> None:
 
     finder, drafter = _build_outreach_from_env()
     result = run(
-        finder=finder, drafter=drafter, applicant_name=os.environ.get("APPLICANT_NAME", "")
+        finder=finder,
+        drafter=drafter,
+        apply_queue=ApplicationDraftQueue(),
+        applicant_name=os.environ.get("APPLICANT_NAME", ""),
+        base_summary=os.environ.get("RESUME_SUMMARY", ""),
     )
     print(
         f"processed={result['processed']} stored={result['stored']} "
         f"excluded={result['excluded']} skipped={result['skipped']} "
-        f"qualified={result['qualified']} drafts={result['drafts']}"
+        f"tier_a={result['tier_a']} app_drafts={result['app_drafts']} "
+        f"qualified={result['qualified']} emails={result['emails']}"
     )
 
 
