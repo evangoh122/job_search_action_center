@@ -12,6 +12,7 @@ recency boost for jobs posted in the last 24h. company_match weights target empl
 from __future__ import annotations
 
 import os
+import re
 from functools import lru_cache
 
 from sklearn.feature_extraction.text import TfidfVectorizer
@@ -19,6 +20,39 @@ from sklearn.metrics.pairwise import cosine_similarity
 
 from config import load_targets
 from models import Job
+
+# The match is scored against the job's CORE content: roles & responsibilities + requirements/
+# qualifications. _CORE_START marks where that content begins; _CORE_END marks the trailing
+# boilerplate (benefits, About Us, EEO, how-to-apply) that we cut off so it can't pollute the
+# similarity. Requirements/qualifications/"about you" are CONTENT here, not cut-off markers.
+_CORE_START = re.compile(
+    r"(roles?\s+(?:and|&)\s+responsibilities|key\s+responsibilities|responsibilities|"
+    r"key\s+accountabilities|accountabilities|what\s+you(?:'|’)?ll\s+(?:do|be\s+doing)|"
+    r"what\s+you\s+will\s+(?:do|be\s+doing)|the\s+role|role\s+overview|about\s+the\s+role|"
+    r"job\s+(?:description|summary|purpose)|duties|your\s+role|day\s+to\s+day|"
+    r"requirements?|qualifications?|what\s+you(?:'|’)?ll\s+need|what\s+you\s+will\s+need|"
+    r"minimum\s+qualifications)",
+    re.IGNORECASE,
+)
+_CORE_END = re.compile(
+    r"(benefits|what\s+we\s+offer|we\s+offer|perks|what(?:'|’)?s\s+in\s+it\s+for\s+you|"
+    r"about\s+(?:us|the\s+(?:company|team|organisation|organization))|why\s+join|our\s+culture|"
+    r"equal\s+opportunity|diversity\s+and\s+inclusion|how\s+to\s+apply|to\s+apply|"
+    r"compensation|remuneration)",
+    re.IGNORECASE,
+)
+
+
+def _relevant_section(description: str) -> str:
+    """Extract responsibilities + requirements; drop trailing boilerplate. Fall back to full text."""
+    text = description or ""
+    if not text.strip():
+        return ""
+    start = _CORE_START.search(text)
+    body = text[start.end():] if start else text  # no header -> keep everything
+    end = _CORE_END.search(body)
+    section = body[: end.start()] if end else body
+    return section.strip() or text
 
 _data = load_targets()
 
@@ -47,7 +81,13 @@ RECENCY_BOOST = float(
 
 
 def _text(job: Job) -> str:
+    """Full job text — used for title-allowlist gating."""
     return f"{job.title} {job.description}".lower()
+
+
+def _match_text(job: Job) -> str:
+    """Text the match is scored against: title + responsibilities & requirements (no boilerplate)."""
+    return f"{job.title} {_relevant_section(job.description)}".lower()
 
 
 @lru_cache(maxsize=1)
@@ -67,8 +107,8 @@ def title_on_allowlist(job: Job) -> bool:
 
 
 def tfidf_similarity(job: Job) -> float:
-    """Cosine similarity between the candidate profile and the job text (TF-IDF vectors)."""
-    job_text = _text(job).strip()
+    """Cosine similarity between the candidate profile and the job's roles & responsibilities."""
+    job_text = _match_text(job).strip()
     if not job_text:
         return 0.0
     try:
@@ -79,8 +119,8 @@ def tfidf_similarity(job: Job) -> float:
 
 
 def ats_match(job: Job) -> float:
-    """ATS-style keyword coverage: fraction of hard keywords present (capped)."""
-    text = _text(job)
+    """ATS-style keyword coverage over the role's responsibilities (capped fraction)."""
+    text = _match_text(job)
     hits = sum(1 for k in ATS_KEYWORDS if k in text)
     return min(1.0, hits / _ATS_FULL_COVERAGE)
 

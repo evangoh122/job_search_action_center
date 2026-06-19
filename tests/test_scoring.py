@@ -62,6 +62,27 @@ def test_ats_match_is_keyword_coverage():
     assert 0.0 <= ats_match(rich) <= 1.0
 
 
+def test_match_uses_responsibilities_and_requirements_not_boilerplate():
+    from scoring import _relevant_section
+    jd = ("About Us. We are a leading bank committed to diversity. "
+          "Responsibilities: lead the data analytics and AI transformation roadmap. "
+          "Requirements: experience with Databricks, AML, KYC. "
+          "Benefits: medical, dental. Equal opportunity employer. How to apply: click here.")
+    section = _relevant_section(jd)
+    assert "data analytics" in section and "Databricks" in section  # resp + reqs kept
+    assert "leading bank" not in section                            # About Us dropped
+    assert "medical" not in section and "click here" not in section  # benefits/apply dropped
+
+
+def test_boilerplate_does_not_inflate_score():
+    core = "Responsibilities: lead data analytics and AI transformation. Requirements: Databricks."
+    boiler = (" About Us: we are a huge global data analytics AI transformation Databricks "
+              "powerhouse. " * 5)
+    j_core = _job("VP Data", "DBS", core)
+    j_boiler = _job("VP Data", "DBS", core + boiler)
+    assert abs(final_score(j_core) - final_score(j_boiler)) < 0.1  # boilerplate ignored
+
+
 def test_company_match_handles_name_suffix():
     # token-subset: "CIMB Singapore" / "OCBC Bank" still match targets "CIMB" / "OCBC"
     assert company_match(_job("VP Data", "CIMB Singapore")) > 0.3
