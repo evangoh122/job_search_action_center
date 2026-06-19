@@ -37,8 +37,18 @@ How the three-tier system runs each phase of `ROADMAP.md`. Source of truth for *
 
 ## Status
 
-- **Phase 0** — Foundation + exclusion gate ✅ shipped
-- **Phase 1** — MyCareersFuture source ✅ shipped (live, no token)
-- **Phase 2** — Scoring + routing (two parallel tracks) ✅ shipped
-- **Phase 3** — HubSpot tracking backbone ✅ shipped (mock-tested; needs `HUBSPOT_TOKEN` for live)
-- 40 tests passing. Next: Phase 4 (Hunter.io + Gmail outreach) — needs `HUNTER_API_KEY` + Gmail auth.
+- **Phase 0** — Foundation + exclusion gate ✅
+- **Phase 1** — MyCareersFuture source ✅ (live, no token)
+- **Phase 2** — Scoring + routing (two parallel tracks) ✅
+- **Phase 3** — HubSpot tracking backbone ✅ (needs `HUBSPOT_TOKEN` for live)
+- **Phase 4** — Outreach: Hunter.io + Gmail drafts ✅ (needs `HUNTER_API_KEY` + Gmail for live)
+- **Phase 5** — Tier B application drafting + review queue ✅
+- **Phase 6** — Tier A gated auto-apply (DRY_RUN default) ✅
+- **Phase 7** — Scheduler + daily reporting ✅ — `python -m runner` is the daily entry point;
+  schedule it via Windows Task Scheduler / cron. Digest prints top matches.
+- 66 tests passing. Next: **Phase 8 — LinkedIn job-poster networking** (find who posted the role).
+
+## Keys for live use (all optional; system degrades gracefully without them)
+`HUNTER_API_KEY` (outreach emails), Gmail OAuth (`GMAIL_TOKEN`), `HUBSPOT_TOKEN` (CRM),
+`AUTO_APPLY_LIVE=true` (disables DRY_RUN), `APPLICANT_NAME/EMAIL/RESUME_URL`, `APIFY_TOKEN`
+(LinkedIn). Set in `.env`.

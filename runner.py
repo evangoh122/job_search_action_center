@@ -184,7 +184,9 @@ def main() -> None:
     dry_run = os.environ.get("AUTO_APPLY_LIVE", "").lower() != "true"
     auto_applier = AutoApplier(applicant, dry_run=dry_run)
 
+    repo = SqliteRepository(os.environ.get("DB_PATH", "data/jobs.sqlite"))
     result = run(
+        repo=repo,
         finder=finder,
         drafter=drafter,
         apply_queue=ApplicationDraftQueue(),
@@ -192,6 +194,9 @@ def main() -> None:
         applicant_name=os.environ.get("APPLICANT_NAME", ""),
         base_summary=os.environ.get("RESUME_SUMMARY", ""),
     )
+    from report import build_report
+
+    print(build_report(result, repo.list_jobs()))
     print(
         f"processed={result['processed']} stored={result['stored']} "
         f"excluded={result['excluded']} skipped={result['skipped']} "

@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import sqlite3
 from abc import ABC, abstractmethod
+from pathlib import Path
 
 from models import Contact, Job
 
@@ -29,6 +30,8 @@ class Repository(ABC):
 
 class SqliteRepository(Repository):
     def __init__(self, db_path: str = ":memory:"):
+        if db_path != ":memory:":
+            Path(db_path).parent.mkdir(parents=True, exist_ok=True)
         self.conn = sqlite3.connect(db_path)
         self.conn.row_factory = sqlite3.Row
         self._create_tables()
