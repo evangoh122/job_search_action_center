@@ -157,8 +157,28 @@ def company_match(job: Job) -> float:
     return 0.3
 
 
+# Junior titles to down-weight: AVP/Associate/Analyst etc. are below the VP & leadership
+# roles being targeted. Carefully bounded so it never catches SVP / Senior VP / First VP / VP.
+# "assistant vice president" matters because it contains the substring "vice president" and
+# would otherwise get full VP credit. \b boundaries keep "avp" from matching inside other words.
+_JUNIOR_TITLE = re.compile(
+    r"\b(assistant\s+vice\s+president|asst\.?\s+vice\s+president|avp|"
+    r"associate|analyst|intern|trainee|graduate|junior|apprentice)\b",
+    re.IGNORECASE,
+)
+_JUNIOR_PENALTY = 0.80  # multiplier applied to junior-titled roles
+
+
+def seniority_factor(job: Job) -> float:
+    """0.80 for junior-titled roles (AVP/Associate/Analyst...), 1.0 otherwise.
+
+    Operates on the title only and never matches SVP / Senior VP / First VP / VP.
+    """
+    return _JUNIOR_PENALTY if _JUNIOR_TITLE.search(job.title or "") else 1.0
+
+
 def final_score(job: Job, within_24h: bool = False) -> float:
-    fs = 100 * (0.65 * overall_match(job) + 0.35 * company_match(job))
+    fs = 100 * (0.65 * overall_match(job) + 0.35 * company_match(job)) * seniority_factor(job)
     if within_24h:
         fs = min(100.0, fs + RECENCY_BOOST)
     return round(fs, 1)

@@ -83,6 +83,25 @@ def test_boilerplate_does_not_inflate_score():
     assert abs(final_score(j_core) - final_score(j_boiler)) < 0.1  # boilerplate ignored
 
 
+def test_junior_titles_score_lower_than_vp():
+    jd = "Lead data analytics and AI transformation. Requirements: Databricks, AML, KYC."
+    vp = final_score(_job("Vice President, Data Analytics", "DBS", jd))
+    avp = final_score(_job("Assistant Vice President, Data Analytics", "DBS", jd))
+    associate = final_score(_job("Associate, Data Analytics", "DBS", jd))
+    assert avp < vp
+    assert associate < vp
+
+
+def test_svp_and_vp_not_penalised():
+    from scoring import seniority_factor
+    assert seniority_factor(_job("Senior Vice President, Data", "DBS")) == 1.0
+    assert seniority_factor(_job("SVP, Analytics", "DBS")) == 1.0
+    assert seniority_factor(_job("First VP, Data Science", "DBS")) == 1.0
+    assert seniority_factor(_job("Vice President, Data", "DBS")) == 1.0
+    assert seniority_factor(_job("Assistant Vice President, Data", "DBS")) == 0.80
+    assert seniority_factor(_job("Associate, Data", "DBS")) == 0.80
+
+
 def test_company_match_handles_name_suffix():
     # token-subset: "CIMB Singapore" / "OCBC Bank" still match targets "CIMB" / "OCBC"
     assert company_match(_job("VP Data", "CIMB Singapore")) > 0.3
