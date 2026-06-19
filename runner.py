@@ -24,12 +24,16 @@ from store.repository import Repository, SqliteRepository
 
 logger = logging.getLogger(__name__)
 
-# Small curated default; full role list lives in Target-list.json (Phase 2 will use it).
+# Tuned to Evan's target: Data/AI VP & leadership roles in banks (SG-focused).
 DEFAULT_TERMS = [
-    "data scientist",
-    "machine learning engineer",
-    "ai engineer",
-    "data analyst",
+    "vice president data",
+    "head of data",
+    "head of analytics",
+    "ai transformation",
+    "data analytics lead",
+    "vice president analytics",
+    "head of data science",
+    "director analytics",
 ]
 
 
@@ -109,6 +113,7 @@ def run(
     apply_queue=None,
     auto_applier=None,
     poster_finder=None,
+    airtable=None,
     applicant_name: str = "",
     base_summary: str = "",
 ) -> dict[str, int]:
@@ -131,6 +136,12 @@ def run(
         job.tier = apply_tier(job)
         repo.upsert_job(job)
         counts["stored"] += 1
+        if airtable is not None:  # mirror to the Airtable job board
+            try:
+                airtable.upsert_job(job)
+                counts["airtable"] = counts.get("airtable", 0) + 1
+            except Exception:
+                logger.warning("Airtable upsert failed for %s", job.title, exc_info=True)
 
         # Track 1 — apply
         if job.tier == "A":
@@ -178,6 +189,12 @@ def main() -> None:
     logging.basicConfig(level=logging.INFO)
     import os
 
+    try:
+        from dotenv import load_dotenv
+        load_dotenv()  # load .env directly — no shell sourcing needed
+    except ImportError:
+        pass
+
     finder, drafter = _build_outreach_from_env()
 
     # Tier A auto-apply: DRY_RUN unless AUTO_APPLY_LIVE=true is explicitly set.
@@ -200,7 +217,16 @@ def main() -> None:
         from network.linkedin_poster import LinkedInPosterFinder
         poster_finder = LinkedInPosterFinder(apify)
 
-    repo = SqliteRepository(os.environ.get("DB_PATH", "data/jobs.sqlite"))
+    # Airtable job board — enabled if token + base id are set.
+    airtable = None
+    at_token, at_base = os.environ.get("AIRTABLE_TOKEN"), os.environ.get("AIRTABLE_BASE_ID")
+    if at_token and at_base:
+        from store.airtable_repo import AirtableRepository
+        airtable = AirtableRepository(
+            at_token, at_base, os.environ.get("AIRTABLE_JOBS_TABLE", "Jobs")
+        )
+
+    repo = SqliteRepository(os.environ.get("JOBS_DB_PATH", "data/jobs.sqlite"))
     result = run(
         repo=repo,
         finder=finder,
@@ -208,6 +234,7 @@ def main() -> None:
         apply_queue=ApplicationDraftQueue(),
         auto_applier=auto_applier,
         poster_finder=poster_finder,
+        airtable=airtable,
         applicant_name=os.environ.get("APPLICANT_NAME", ""),
         base_summary=os.environ.get("RESUME_SUMMARY", ""),
     )

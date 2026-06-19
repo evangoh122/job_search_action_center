@@ -16,7 +16,7 @@ def _job(title: str, ats: str, score: float | None) -> Job:
 
 
 def test_auto_apply_greenhouse():
-    job = _job("Data Scientist", "greenhouse", 95.0)
+    job = _job("Head of Data", "greenhouse", 95.0)  # title in VP/leadership allowlist
     assert apply_tier(job) == "A"
     assert should_outreach(job) is True
 

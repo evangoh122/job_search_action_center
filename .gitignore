@@ -1,6 +1,12 @@
 # Secrets — NEVER commit
 .env
 .env.*
+hubspot.config.yml
+
+# Personal resume / CV files — never commit
+resume/
+resumes/
+*.resume.*
 
 # MiMo raw output scratch
 .mimo/_*.md

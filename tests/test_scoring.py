@@ -36,5 +36,5 @@ def test_within_24h_boost():
 
 
 def test_title_on_allowlist():
-    assert title_on_allowlist(_job("Machine Learning Engineer", "X")) is True
+    assert title_on_allowlist(_job("Head of Data", "X")) is True
     assert title_on_allowlist(_job("Barista", "X")) is False

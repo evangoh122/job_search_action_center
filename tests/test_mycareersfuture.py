@@ -28,7 +28,7 @@ def test_fetch_filters_old_jobs() -> None:
         assert "mycareersfuture" in url
         return {"results": mock_results}
 
-    source = MyCareersFutureSource(["python"], max_age_days=1, http_post=fake_http_post)
+    source = MyCareersFutureSource(["python"], max_age_days=1, http_post=fake_http_post, enrich=False)
     results = source.fetch()
 
     assert len(results) == 1
@@ -56,11 +56,33 @@ def test_fetch_dedupes_across_terms() -> None:
         calls += 1
         return {"results": single}
 
-    source = MyCareersFutureSource(["python", "developer"], http_post=fake_http_post)
+    source = MyCareersFutureSource(["python", "developer"], http_post=fake_http_post, enrich=False)
     results = source.fetch()
 
     assert calls == 2
     assert len(results) == 1
+
+
+def test_fetch_enriches_description() -> None:
+    today_iso = datetime.now().date().isoformat()
+    search = [{"uuid": "u1", "title": "Head of Data", "postedCompany": {"name": "DBS"},
+               "metadata": {"newPostingDate": today_iso}}]
+
+    def fake_post(url: str, payload: dict) -> dict:
+        return {"results": search}
+
+    def fake_get(url: str) -> dict:
+        assert "u1" in url
+        return {"description": "<p>Lead <b>machine learning</b> teams</p>",
+                "skills": [{"skill": "Databricks"}, {"skill": "PySpark"}]}
+
+    source = MyCareersFutureSource(["data"], http_post=fake_post, enrich=True, http_get=fake_get)
+    jobs = source.fetch()
+    assert len(jobs) == 1
+    desc = jobs[0].description
+    assert "machine learning" in desc  # HTML stripped
+    assert "Databricks" in desc and "PySpark" in desc  # skills folded in
+    assert "<p>" not in desc
 
 
 def test_fetch_skips_malformed_entries() -> None:
@@ -78,7 +100,7 @@ def test_fetch_skips_malformed_entries() -> None:
     def fake_http_post(url: str, payload: dict) -> dict:
         return {"results": mock_results}
 
-    source = MyCareersFutureSource(["data"], http_post=fake_http_post)
+    source = MyCareersFutureSource(["data"], http_post=fake_http_post, enrich=False)
     results = source.fetch()
 
     assert len(results) == 1

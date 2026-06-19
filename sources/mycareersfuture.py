@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from collections.abc import Callable
 from datetime import datetime, timedelta
 
@@ -12,6 +13,7 @@ from sources.base import JobSource
 logger = logging.getLogger(__name__)
 
 _DEFAULT_API_URL = "https://api.mycareersfuture.gov.sg/v2/search?limit={limit}&page=0"
+_DETAIL_URL = "https://api.mycareersfuture.gov.sg/v2/jobs/{uuid}"
 _DEFAULT_HEADERS = {
     "Content-Type": "application/json",
     "User-Agent": (
@@ -27,6 +29,16 @@ def _default_http_post(url: str, payload: dict) -> dict:
     return response.json()
 
 
+def _default_http_get(url: str) -> dict:
+    response = httpx.get(url, headers=_DEFAULT_HEADERS, timeout=30)
+    response.raise_for_status()
+    return response.json()
+
+
+def _strip_html(text: str) -> str:
+    return re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", text or "")).strip()
+
+
 class MyCareersFutureSource(JobSource):
     """Pulls jobs from the public MyCareersFuture (Singapore) search API.
 
@@ -39,11 +51,26 @@ class MyCareersFutureSource(JobSource):
         max_age_days: int = 1,
         limit: int = 30,
         http_post: Callable[[str, dict], dict] | None = None,
+        enrich: bool = True,
+        http_get: Callable[[str], dict] | None = None,
     ) -> None:
         self.search_terms = search_terms
         self.max_age_days = max_age_days
         self.limit = limit
         self.http_post = http_post if http_post is not None else _default_http_post
+        self.enrich = enrich
+        self.http_get = http_get if http_get is not None else _default_http_get
+
+    def _fetch_description(self, uuid: str) -> str:
+        """Pull the full job description + skills from the per-job detail endpoint."""
+        try:
+            d = self.http_get(_DETAIL_URL.format(uuid=uuid))
+        except Exception:
+            logger.warning("Detail fetch failed for %s", uuid, exc_info=True)
+            return ""
+        desc = _strip_html(d.get("description", ""))
+        skills = " ".join(s.get("skill", "") for s in d.get("skills", []) if s.get("skill"))
+        return f"{desc} {skills}".strip()
 
     def fetch(self) -> list[RawJob]:
         results: dict[str, RawJob] = {}
@@ -69,6 +96,7 @@ class MyCareersFutureSource(JobSource):
                     if posted_at.date() < cutoff:
                         continue
 
+                    description = self._fetch_description(job_uuid) if self.enrich else ""
                     results[job_uuid] = RawJob(
                         source="mycareersfuture",
                         company=item["postedCompany"]["name"],
@@ -76,7 +104,7 @@ class MyCareersFutureSource(JobSource):
                         url=f"https://www.mycareersfuture.gov.sg/job/{job_uuid}",
                         posted_at=posted_at,
                         ats_type="mycareersfuture",
-                        description="",
+                        description=description,
                     )
                 except (KeyError, IndexError, ValueError, TypeError):
                     logger.warning("Skipping malformed entry: %s", item, exc_info=True)
