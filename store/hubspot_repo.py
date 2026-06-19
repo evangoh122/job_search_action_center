@@ -113,21 +113,27 @@ class HubSpotRepository(Repository):
         return out
 
     def upsert_contact(self, c: Contact) -> None:
+        # The Gmail Sales extension attaches open-tracking by matching the recipient email,
+        # so a contact with no email is useless here — skip it. Uses only standard HubSpot
+        # properties (email/firstname/company/jobtitle) to avoid custom-property setup.
+        if not c.email:
+            return
         body = {
             "filterGroups": [
-                {"filters": [{"propertyName": "contact_id", "operator": "EQ", "value": c.id}]}
+                {"filters": [{"propertyName": "email", "operator": "EQ", "value": c.email}]}
             ],
-            "properties": ["contact_id"],
+            "properties": ["email"],
         }
         res = self.http("POST", f"{_BASE}/crm/v3/objects/contacts/search", body)
         results = res.get("results", [])
         props = {
             "properties": {
-                "email": c.email,
-                "firstname": c.name,
-                "company": c.company_canonical,
-                "contact_id": c.id,
-                "role": c.role,
+                k: v for k, v in {
+                    "email": c.email,
+                    "firstname": c.name,
+                    "company": c.company_canonical,
+                    "jobtitle": c.role,
+                }.items() if v
             }
         }
         if results:

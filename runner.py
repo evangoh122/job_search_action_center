@@ -73,11 +73,33 @@ def _within_24h(raw: RawJob) -> bool:
     return raw.posted_at is not None and raw.posted_at >= datetime.now() - timedelta(days=1)
 
 
-def _run_outreach(job, repo, finder, drafter, applicant_name, day) -> int:
-    """Track 2: email recruiter + hiring manager, respecting the daily outreach cap."""
+def _track_contact(c, crm, airtable) -> str | None:
+    """Mirror a contact into HubSpot (open-tracking) + Airtable. Returns the Airtable rec id."""
+    if crm is not None:
+        try:
+            crm.upsert_contact(c)
+        except Exception:
+            logger.warning("HubSpot contact upsert failed for %s", c.email or c.name, exc_info=True)
+    if airtable is not None:
+        try:
+            return airtable.upsert_contact(c)
+        except Exception:
+            logger.warning("Airtable contact upsert failed for %s", c.email or c.name, exc_info=True)
+    return None
+
+
+def _run_outreach(job, repo, finder, drafter, applicant_name, day,
+                  crm=None, airtable=None, job_rec_id=None) -> int:
+    """Track 2: email recruiter + hiring manager, respecting the daily outreach cap.
+    Contacts are mirrored to HubSpot (open-tracking) + Airtable; each email is logged."""
     if finder is None or drafter is None:
         return 0
     contacts = finder.find_people(job.company_canonical, max_each=1)
+    contact_rec_by_email = {}
+    for c in contacts:
+        rec = _track_contact(c, crm, airtable)
+        if rec and c.email:
+            contact_rec_by_email[c.email] = rec
     drafted = 0
     for draft in build_drafts(job, contacts, applicant_name):
         if repo.count_actions("outreach", day) >= DAILY_CAPS["outreach"]:
@@ -85,6 +107,11 @@ def _run_outreach(job, repo, finder, drafter, applicant_name, day) -> int:
             break
         drafter.create_draft(draft)
         repo.incr_action("outreach", day)
+        if airtable is not None:
+            try:
+                airtable.record_outreach(draft, job_rec_id, contact_rec_by_email.get(draft.to_email))
+            except Exception:
+                logger.warning("Airtable outreach log failed for %s", draft.to_email, exc_info=True)
         drafted += 1
     return drafted
 
@@ -123,6 +150,7 @@ def run(
     auto_applier=None,
     poster_finder=None,
     airtable=None,
+    crm=None,
     applicant_name: str = "",
     base_summary: str = "",
     apify_token: str = "",
@@ -146,9 +174,10 @@ def run(
         job.tier = apply_tier(job)
         repo.upsert_job(job)
         counts["stored"] += 1
+        job_rec_id = None
         if airtable is not None:  # mirror to the Airtable job board
             try:
-                airtable.upsert_job(job)
+                job_rec_id = airtable.upsert_job(job)
                 counts["airtable"] = counts.get("airtable", 0) + 1
             except Exception:
                 logger.warning("Airtable upsert failed for %s", job.title, exc_info=True)
@@ -165,21 +194,48 @@ def run(
         # Track 2 — outreach (parallel)
         if should_outreach(job):
             counts["qualified"] += 1
-            counts["emails"] += _run_outreach(job, repo, finder, drafter, applicant_name, day)
+            counts["emails"] += _run_outreach(
+                job, repo, finder, drafter, applicant_name, day,
+                crm=crm, airtable=airtable, job_rec_id=job_rec_id,
+            )
             # Find the specific LinkedIn job poster to reach out to directly.
             if poster_finder is not None:
                 poster = poster_finder.find_poster(job.url, company=job.company_canonical)
                 if poster:
                     repo.upsert_contact(poster)
+                    _track_contact(poster, crm, airtable)  # mirror to HubSpot + Airtable
                     counts["posters"] += 1
                     logger.info("LinkedIn poster for '%s': %s (%s)",
                                 job.title, poster.name, poster.role_type)
     return counts
 
 
+def _build_drafter_from_env():
+    """Gmail drafts if OAuth refresh-token creds exist (preferred), else a single bearer
+    token (GMAIL_TOKEN), else the local review-queue JSONL fallback."""
+    import os
+
+    from network.gmail_drafter import GmailDrafter, ReviewQueueDrafter
+
+    sender = os.environ.get("APPLICANT_EMAIL", "me") or "me"
+    client_id = os.environ.get("GMAIL_CLIENT_ID")
+    client_secret = os.environ.get("GMAIL_CLIENT_SECRET")
+    refresh_token = os.environ.get("GMAIL_REFRESH_TOKEN")
+    if client_id and client_secret and refresh_token:
+        logger.info("Gmail drafter: OAuth2 refresh-token flow.")
+        return GmailDrafter.from_refresh_token(
+            client_id, client_secret, refresh_token, sender=sender
+        )
+    gmail_token = os.environ.get("GMAIL_TOKEN")
+    if gmail_token:
+        logger.info("Gmail drafter: static bearer token.")
+        return GmailDrafter(gmail_token, sender=sender)
+    logger.info("Gmail not configured — using local review-queue JSONL fallback.")
+    return ReviewQueueDrafter()
+
+
 def _build_outreach_from_env():
-    """Enable Track 2 only if a Hunter key exists; Gmail drafts if a Gmail token exists,
-    otherwise fall back to the local review-queue JSONL."""
+    """Enable Track 2 only if a Hunter key exists; pick the best available Gmail drafter."""
     import os
 
     hunter = os.environ.get("HUNTER_API_KEY")
@@ -187,11 +243,9 @@ def _build_outreach_from_env():
         logger.info("HUNTER_API_KEY not set — outreach track disabled (apply track still runs).")
         return None, None
     from network.email_finder import HunterEmailFinder
-    from network.gmail_drafter import GmailDrafter, ReviewQueueDrafter
 
     finder = HunterEmailFinder(hunter)
-    gmail_token = os.environ.get("GMAIL_TOKEN")
-    drafter = GmailDrafter(gmail_token) if gmail_token else ReviewQueueDrafter()
+    drafter = _build_drafter_from_env()
     return finder, drafter
 
 
@@ -227,14 +281,24 @@ def main() -> None:
         from network.linkedin_poster import LinkedInPosterFinder
         poster_finder = LinkedInPosterFinder(apify)
 
-    # Airtable job board — enabled if token + base id are set.
+    # Airtable job board — enabled if token + base id are set (Jobs + Contacts + Outreach).
     airtable = None
     at_token, at_base = os.environ.get("AIRTABLE_TOKEN"), os.environ.get("AIRTABLE_BASE_ID")
     if at_token and at_base:
         from store.airtable_repo import AirtableRepository
         airtable = AirtableRepository(
-            at_token, at_base, os.environ.get("AIRTABLE_JOBS_TABLE", "Jobs")
+            at_token, at_base,
+            os.environ.get("AIRTABLE_JOBS_TABLE", "Jobs"),
+            os.environ.get("AIRTABLE_CONTACTS_TABLE", "Contacts"),
+            os.environ.get("AIRTABLE_OUTREACH_TABLE", "Outreach"),
         )
+
+    # HubSpot CRM — used only to mirror contacts so the Gmail Sales extension tracks opens.
+    crm = None
+    hubspot_token = os.environ.get("HUBSPOT_TOKEN")
+    if hubspot_token:
+        from store.hubspot_repo import HubSpotRepository
+        crm = HubSpotRepository(hubspot_token)
 
     repo = SqliteRepository(os.environ.get("JOBS_DB_PATH", "data/jobs.sqlite"))
     result = run(
@@ -245,6 +309,7 @@ def main() -> None:
         auto_applier=auto_applier,
         poster_finder=poster_finder,
         airtable=airtable,
+        crm=crm,
         applicant_name=os.environ.get("APPLICANT_NAME", ""),
         base_summary=os.environ.get("RESUME_SUMMARY", ""),
         apify_token=apify or "",

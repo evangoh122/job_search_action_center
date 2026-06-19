@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from models import Job
+from models import Contact, EmailDraft, Job
 from store.airtable_repo import AirtableRepository
 
 
@@ -53,3 +53,60 @@ def test_tier_none_omitted():
     AirtableRepository("tok", "appX", http=http).upsert_job(job)
     fields = [c for c in calls if c[0] == "POST"][0][2]["records"][0]["fields"]
     assert "Tier" not in fields  # singleSelect rejects empty
+
+
+def _contact(**kw) -> Contact:
+    base = dict(id="c1", name="Jane Tan", company_canonical="DBS", role="Talent Acquisition",
+                role_type="recruiter", email="jane@dbs.com", confidence=92)
+    base.update(kw)
+    return Contact(**base)
+
+
+def test_upsert_contact_creates():
+    http, calls = _fake_http([])
+    rid = AirtableRepository("tok", "appX", http=http).upsert_contact(_contact())
+    assert rid == "rec123"
+    fields = [c for c in calls if c[0] == "POST"][0][2]["records"][0]["fields"]
+    assert fields["Email"] == "jane@dbs.com"
+    assert fields["Type"] == "recruiter"
+    assert fields["Confidence"] == 92
+    # deduped by Email
+    get = [c for c in calls if c[0] == "GET"][0]
+    assert "Email" in get[1]
+
+
+def test_upsert_contact_invalid_type_omitted():
+    http, calls = _fake_http([])
+    AirtableRepository("tok", "appX", http=http).upsert_contact(_contact(role_type=""))
+    fields = [c for c in calls if c[0] == "POST"][0][2]["records"][0]["fields"]
+    assert "Type" not in fields  # singleSelect rejects unknown values
+
+
+def test_upsert_contact_dedupes_by_linkedin_when_no_email():
+    http, calls = _fake_http([])
+    c = _contact(email="", linkedin_url="https://linkedin.com/in/jane")
+    AirtableRepository("tok", "appX", http=http).upsert_contact(c)
+    get = [c for c in calls if c[0] == "GET"][0]
+    assert "LinkedIn" in get[1]
+
+
+def test_record_outreach_links_job_and_contact():
+    http, calls = _fake_http([])
+    draft = EmailDraft(job_id="j1", company="DBS", to_email="jane@dbs.com", to_name="Jane",
+                       role_type="recruiter", subject="Re: Head of Data", body="Hello")
+    rid = AirtableRepository("tok", "appX", http=http).record_outreach(draft, "recJOB", "recCON")
+    assert rid == "rec123"
+    fields = [c for c in calls if c[0] == "POST"][0][2]["records"][0]["fields"]
+    assert fields["Job"] == ["recJOB"]
+    assert fields["Contact"] == ["recCON"]
+    assert fields["To"] == "jane@dbs.com"
+    assert fields["Status"] == "drafted"
+
+
+def test_record_outreach_without_links():
+    http, calls = _fake_http([])
+    draft = EmailDraft(job_id="j1", company="DBS", to_email="jane@dbs.com", to_name="Jane",
+                       role_type="recruiter", subject="Hi", body="Hello")
+    AirtableRepository("tok", "appX", http=http).record_outreach(draft)
+    fields = [c for c in calls if c[0] == "POST"][0][2]["records"][0]["fields"]
+    assert "Job" not in fields and "Contact" not in fields
