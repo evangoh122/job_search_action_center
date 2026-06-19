@@ -20,6 +20,7 @@ from network.outreach import build_drafts
 from routing import apply_tier, should_outreach
 from scoring import final_score
 from sources.mycareersfuture import MyCareersFutureSource
+from sources.linkedin import LinkedInJobSource
 from store.repository import Repository, SqliteRepository
 
 logger = logging.getLogger(__name__)
@@ -37,9 +38,17 @@ DEFAULT_TERMS = [
 ]
 
 
-def sources() -> list[RawJob]:
-    """Live job sources. MyCareersFuture (SG) now; LinkedIn slots in here next."""
-    return MyCareersFutureSource(DEFAULT_TERMS, max_age_days=1).fetch()
+def sources(apify_token: str = "") -> list[RawJob]:
+    """Live job sources: MyCareersFuture (SG) + LinkedIn (when APIFY_TOKEN is set)."""
+    jobs = MyCareersFutureSource(DEFAULT_TERMS, max_age_days=1).fetch()
+    if apify_token:
+        try:
+            li_jobs = LinkedInJobSource(apify_token, DEFAULT_TERMS, max_age_days=1).fetch()
+            jobs.extend(li_jobs)
+            logger.info("LinkedIn source added %d jobs", len(li_jobs))
+        except Exception:
+            logger.warning("LinkedIn source failed — continuing with MCF only", exc_info=True)
+    return jobs
 
 
 def normalize(raw: RawJob) -> Job:
@@ -116,9 +125,10 @@ def run(
     airtable=None,
     applicant_name: str = "",
     base_summary: str = "",
+    apify_token: str = "",
 ) -> dict[str, int]:
     repo = repo or SqliteRepository()
-    raws = jobs if jobs is not None else sources()
+    raws = jobs if jobs is not None else sources(apify_token)
     day = datetime.now().date().isoformat()
     counts = {"processed": 0, "stored": 0, "excluded": 0, "skipped": 0,
               "qualified": 0, "tier_a": 0, "app_drafts": 0, "emails": 0, "posters": 0}
@@ -237,6 +247,7 @@ def main() -> None:
         airtable=airtable,
         applicant_name=os.environ.get("APPLICANT_NAME", ""),
         base_summary=os.environ.get("RESUME_SUMMARY", ""),
+        apify_token=apify or "",
     )
     from report import build_report
 
