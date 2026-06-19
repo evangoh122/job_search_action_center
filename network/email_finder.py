@@ -55,16 +55,18 @@ class HunterEmailFinder:
         buckets: dict[str, list[Contact]] = {"recruiter": [], "hiring_manager": []}
 
         for e in emails:
-            rt = _classify(e.get("position", ""), e.get("department", ""))
+            # Hunter sends explicit null for missing fields, so `.get(k, "")` isn't enough.
+            position = e.get("position") or ""
+            rt = _classify(position, e.get("department") or "")
             if rt is None:
                 continue
-            name = f"{e.get('first_name', '')} {e.get('last_name', '')}".strip()
+            name = f"{e.get('first_name') or ''} {e.get('last_name') or ''}".strip()
             buckets[rt].append(
                 Contact(
                     id=e["value"],
                     name=name or e["value"],
                     company_canonical=company,
-                    role=e.get("position", ""),
+                    role=position,
                     role_type=rt,
                     email=e["value"],
                     confidence=int(e.get("confidence", 0) or 0),

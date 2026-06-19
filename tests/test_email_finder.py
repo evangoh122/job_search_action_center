@@ -54,3 +54,18 @@ def test_failed_request_returns_empty():
         raise RuntimeError("network down")
 
     assert HunterEmailFinder("k", http_get=_fail).find_people("Acme") == []
+
+
+def test_handles_null_fields_from_hunter():
+    """Hunter sends explicit null for position/name; must not crash Contact validation."""
+    payload = {"data": {"emails": [
+        {"value": "talent@acme.com", "first_name": None, "last_name": None,
+         "position": None, "department": "hr", "confidence": None},
+    ]}}
+    contacts = HunterEmailFinder("k", http_get=lambda url: payload).find_people("Acme")
+    assert len(contacts) == 1
+    c = contacts[0]
+    assert c.role == ""           # null position coerced to empty string
+    assert c.name == "talent@acme.com"  # falls back to email when name is null
+    assert c.confidence == 0
+    assert c.role_type == "recruiter"  # matched via hr department
