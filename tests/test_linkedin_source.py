@@ -53,7 +53,7 @@ def test_dedupes_across_terms():
     calls = []
 
     def fake_post(url: str, body: dict) -> list:
-        calls.append(body["searchKeywords"])
+        calls.append(body["title"])  # actor's keyword field is `title`
         return [item]
 
     src = LinkedInJobSource("tok", ["term1", "term2"], http_post=fake_post)
@@ -80,6 +80,30 @@ def test_tolerates_no_posted_at():
     jobs = _source(items).fetch()
     assert len(jobs) == 1
     assert jobs[0].posted_at is None
+
+
+def test_sends_correct_actor_schema():
+    """24h window must send the actor's native filter: title + publishedAt=r86400 + rows."""
+    sent = {}
+
+    def fake_post(url: str, body: dict) -> list:
+        sent.update(body)
+        return []
+
+    LinkedInJobSource("tok", ["head of data"], location="Singapore",
+                      max_age_days=1, max_results_per_term=25, http_post=fake_post).fetch()
+    assert sent["title"] == "head of data"
+    assert sent["location"] == "Singapore"
+    assert sent["rows"] == 25
+    assert sent["publishedAt"] == "r86400"  # past 24 hours
+
+
+def test_parses_publishedat_date_field():
+    items = [{"jobUrl": "https://li.co/j/1", "companyName": "OCBC", "title": "Data & AI Architect",
+               "publishedAt": datetime.now().date().isoformat()}]
+    jobs = _source(items).fetch()
+    assert len(jobs) == 1
+    assert jobs[0].posted_at is not None
 
 
 def test_tolerates_apify_failure():

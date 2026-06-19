@@ -25,14 +25,28 @@ _RUN_URL = "https://api.apify.com/v2/acts/{actor}/run-sync-get-dataset-items?tok
 # LinkedIn location IDs for Singapore
 _SG_LOCATION = "Singapore"
 
+# bebity actor's `publishedAt` enum: LinkedIn's native "date posted" filter (seconds).
+_R_24H, _R_7D, _R_30D = "r86400", "r604800", "r2592000"
+
 HttpPost = Callable[[str, dict], list]
 
 
-class LinkedInJobSource(JobSource):
-    """Pulls Data/AI VP & leadership job listings from LinkedIn via Apify.
+def _published_at_param(max_age_days: int) -> str:
+    """Map a freshness window to the actor's native date-posted filter."""
+    if max_age_days <= 1:
+        return _R_24H
+    if max_age_days <= 7:
+        return _R_7D
+    if max_age_days <= 30:
+        return _R_30D
+    return ""  # any time
 
-    Each search term is queried in sequence; results are deduped by job URL.
-    Posted-within filter uses the `postedAt` field from Apify items.
+
+class LinkedInJobSource(JobSource):
+    """Pulls Data/AI VP & leadership job listings from LinkedIn via Apify (bebity actor).
+
+    Each search term is queried in sequence; results are deduped by job URL. Freshness is
+    enforced server-side via the actor's `publishedAt` filter, with a date backstop here.
     """
 
     def __init__(
@@ -66,29 +80,31 @@ class LinkedInJobSource(JobSource):
         return resp or []
 
     def _parse_posted_at(self, item: dict) -> datetime | None:
-        """Parse `postedAt` from Apify item. Accepts ISO string or epoch ms int."""
-        raw = item.get("postedAt") or item.get("postedDate") or ""
+        """Parse the post date from an Apify item. The bebity actor returns `publishedAt`
+        as an ISO date (e.g. "2026-05-21"); accept legacy/epoch forms too."""
+        raw = item.get("publishedAt") or item.get("postedAt") or item.get("postedDate") or ""
         if not raw:
             return None
         try:
             if isinstance(raw, (int, float)):
                 return datetime.fromtimestamp(raw / 1000)
-            return datetime.fromisoformat(str(raw).replace("Z", "+00:00").replace("+00:00", ""))
+            return datetime.fromisoformat(str(raw).replace("Z", "").replace("+00:00", ""))
         except (ValueError, OSError):
             return None
 
     def fetch(self) -> list[RawJob]:
-        cutoff = datetime.now() - timedelta(days=self.max_age_days)
+        cutoff_date = (datetime.now() - timedelta(days=self.max_age_days)).date()
         seen_urls: set[str] = set()
         results: list[RawJob] = []
         run_url = _RUN_URL.format(actor=_ACTOR, token=self.token)
 
         for term in self.search_terms:
             payload = {
-                "searchKeywords": term,
+                "title": term,  # the actor's keyword field is `title`, not `searchKeywords`
                 "location": self.location,
-                "maxResults": self.max_results_per_term,
-                "proxy": {"useApifyProxy": True},
+                "rows": self.max_results_per_term,
+                "publishedAt": _published_at_param(self.max_age_days),
+                "proxy": {"useApifyProxy": True, "apifyProxyGroups": ["RESIDENTIAL"]},
             }
             try:
                 items = self._items(self.http_post(run_url, payload))
@@ -107,8 +123,10 @@ class LinkedInJobSource(JobSource):
                     if not company or not title:
                         continue
 
+                    # publishedAt is day-granular; server-side filter already applied the
+                    # real cutoff, so only drop clearly-stale items here (date backstop).
                     posted_at = self._parse_posted_at(item)
-                    if posted_at is not None and posted_at < cutoff:
+                    if posted_at is not None and posted_at.date() < cutoff_date:
                         continue
 
                     description = (item.get("descriptionText") or item.get("description") or "").strip()
