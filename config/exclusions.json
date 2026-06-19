@@ -21,11 +21,6 @@
     }
   ],
   "excluded_consulting": [
-    {
-      "canonical": "Consulting",
-      "aliases": ["Consultancy"],
-      "note": "Catch-all: any firm with 'consulting' or 'consultancy' in its name (incl. consulting-named recruitment agencies)."
-    },
     {"canonical": "Accenture", "aliases": []},
     {"canonical": "Deloitte", "aliases": []},
     {"canonical": "PricewaterhouseCoopers", "aliases": ["PwC"]},

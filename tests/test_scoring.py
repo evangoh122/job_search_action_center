@@ -1,8 +1,14 @@
 from models import Job
-from scoring import final_score, title_on_allowlist
+from scoring import (
+    ats_match,
+    company_match,
+    final_score,
+    tfidf_similarity,
+    title_on_allowlist,
+)
 
 
-def _job(title: str, company: str) -> Job:
+def _job(title: str, company: str, description: str = "") -> Job:
     return Job(
         id="test",
         source="test",
@@ -11,6 +17,7 @@ def _job(title: str, company: str) -> Job:
         title=title,
         url="https://example.com",
         ats_type="greenhouse",
+        description=description,
     )
 
 
@@ -38,3 +45,25 @@ def test_within_24h_boost():
 def test_title_on_allowlist():
     assert title_on_allowlist(_job("Head of Data", "X")) is True
     assert title_on_allowlist(_job("Barista", "X")) is False
+
+
+def test_tfidf_similarity_rewards_relevant_jd():
+    relevant = _job("VP Data Analytics", "DBS",
+                    "Lead data analytics and AI transformation using Databricks and PySpark.")
+    irrelevant = _job("Barista", "Cafe", "Make coffee and serve pastries to customers.")
+    assert tfidf_similarity(relevant) > tfidf_similarity(irrelevant)
+    assert tfidf_similarity(irrelevant) == 0.0
+
+
+def test_ats_match_is_keyword_coverage():
+    rich = _job("Head of Data", "DBS",
+                "data analytics, ai transformation, databricks, aml, kyc, vice president")
+    assert ats_match(rich) > ats_match(_job("Barista", "Cafe", "coffee"))
+    assert 0.0 <= ats_match(rich) <= 1.0
+
+
+def test_company_match_handles_name_suffix():
+    # token-subset: "CIMB Singapore" / "OCBC Bank" still match targets "CIMB" / "OCBC"
+    assert company_match(_job("VP Data", "CIMB Singapore")) > 0.3
+    assert company_match(_job("VP Data", "OCBC Bank")) > 0.3
+    assert company_match(_job("VP Data", "Totally Random Co")) == 0.3
