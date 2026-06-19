@@ -7,8 +7,12 @@ from typing import Any
 _BASE_DIR = Path(__file__).resolve().parent
 _TARGETS_PATH = _BASE_DIR / "Target-list.json"
 
-AUTO_APPLY_THRESHOLD: float = 92.0
-DRAFT_FLOOR: float = 78.0
+# Calibrated to the TF-IDF + ATS scoring distribution (see scoring.py). The cosine-based
+# match compresses scores (a strong target-bank role lands ~60-67), so these are lower than
+# a raw keyword-count formula would use. Outreach creates Gmail drafts only and auto-apply
+# is dry-run by default, so these gate drafting, not live sends.
+AUTO_APPLY_THRESHOLD: float = 65.0
+DRAFT_FLOOR: float = 55.0
 DAILY_CAPS: dict[str, int] = {
     "auto_apply": 10,
     "drafts": 25,
