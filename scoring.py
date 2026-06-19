@@ -135,10 +135,11 @@ def _target_token_sets() -> tuple[tuple[frozenset[str], int], ...]:
     return tuple((frozenset(name.split()), prio) for name, prio in TARGET_COMPANIES.items())
 
 
-def _target_priority(company: str) -> int | None:
+def target_priority(company: str) -> int | None:
     """Best (lowest) priority of any target whose name tokens are a subset of the company.
 
     Token-subset so "CIMB Singapore" / "OCBC Bank" still match targets "CIMB" / "OCBC".
+    Returns None for non-target companies. Lower number = higher priority (sg_banks=1).
     """
     tokens = frozenset(company.lower().split())
     best: int | None = None
@@ -150,7 +151,7 @@ def _target_priority(company: str) -> int | None:
 
 def company_match(job: Job) -> float:
     """Target-employer weighting: priority-1 targets score 1.0, others a low baseline."""
-    prio = _target_priority(job.company_canonical)
+    prio = target_priority(job.company_canonical)
     if prio is not None:
         return (10 - prio) / 9.0  # priority 1 -> 1.0
     return 0.3

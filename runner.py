@@ -185,7 +185,12 @@ def run(
         # Track 1 — apply
         if job.tier == "A":
             counts["tier_a"] += 1
-            _run_apply_a(job, repo, auto_applier, day)
+            result = _run_apply_a(job, repo, auto_applier, day)
+            # Top-priority bank role on a non-submittable ATS (LinkedIn/MCF): still draft it.
+            if result in ("unsupported", "disabled"):
+                counts["app_drafts"] += _run_apply_b(
+                    job, repo, apply_queue, base_summary, applicant_name, day
+                )
         elif job.tier == "B":
             counts["app_drafts"] += _run_apply_b(
                 job, repo, apply_queue, base_summary, applicant_name, day
