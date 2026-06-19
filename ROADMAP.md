@@ -88,6 +88,20 @@ until explicitly turned on.
 **Builds:** scheduled `runner.py` (SG timezone), daily summary (new jobs, tiers, drafts, sends).
 **Exit:** one unattended daily run produces the digest with caps respected.
 
+### Phase 8 — LinkedIn job-poster networking
+**Goal:** beyond Hunter's generic company contacts, find the **specific person who posted the
+role on LinkedIn** (the hiring manager or recruiter who put up the listing) so the user can reach
+out to *them* directly.
+**Source:** Apify LinkedIn Jobs actor (or public guest data) returns the job poster's name, title,
+and profile URL. Classify recruiter vs hiring manager (reuse `network.email_finder._classify`).
+LinkedIn gives no email — optionally enrich via Hunter Email Finder (name + company domain), else
+the user messages them on LinkedIn.
+**Builds:** `network/linkedin_poster.py` (`LinkedInPosterFinder`, injectable HTTP), feeds the
+poster as a Contact into the Track-2 outreach drafting.
+**Keys needed:** `APIFY_TOKEN` (LinkedIn). Build against mocks now; live when added.
+**Exit:** for a sample LinkedIn job, the poster is identified, classified, and turned into a
+Contact ready for outreach. Tested against a mocked Apify response.
+
 ## Cross-cutting guardrails (apply every phase)
 
 - Exclusion gate runs before any scoring or outbound action.

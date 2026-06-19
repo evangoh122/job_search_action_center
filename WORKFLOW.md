@@ -46,7 +46,8 @@ How the three-tier system runs each phase of `ROADMAP.md`. Source of truth for *
 - **Phase 6** — Tier A gated auto-apply (DRY_RUN default) ✅
 - **Phase 7** — Scheduler + daily reporting ✅ — `python -m runner` is the daily entry point;
   schedule it via Windows Task Scheduler / cron. Digest prints top matches.
-- 66 tests passing. Next: **Phase 8 — LinkedIn job-poster networking** (find who posted the role).
+- **Phase 8** — LinkedIn job-poster networking ✅ — finds who posted the role (needs `APIFY_TOKEN`).
+- **70 tests passing. All planned phases (0–8) complete.**
 
 ## Keys for live use (all optional; system degrades gracefully without them)
 `HUNTER_API_KEY` (outreach emails), Gmail OAuth (`GMAIL_TOKEN`), `HUBSPOT_TOKEN` (CRM),

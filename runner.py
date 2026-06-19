@@ -108,6 +108,7 @@ def run(
     drafter=None,
     apply_queue=None,
     auto_applier=None,
+    poster_finder=None,
     applicant_name: str = "",
     base_summary: str = "",
 ) -> dict[str, int]:
@@ -115,7 +116,7 @@ def run(
     raws = jobs if jobs is not None else sources()
     day = datetime.now().date().isoformat()
     counts = {"processed": 0, "stored": 0, "excluded": 0, "skipped": 0,
-              "qualified": 0, "tier_a": 0, "app_drafts": 0, "emails": 0}
+              "qualified": 0, "tier_a": 0, "app_drafts": 0, "emails": 0, "posters": 0}
     for raw in raws:
         counts["processed"] += 1
         if not (raw.company or "").strip():
@@ -144,6 +145,14 @@ def run(
         if should_outreach(job):
             counts["qualified"] += 1
             counts["emails"] += _run_outreach(job, repo, finder, drafter, applicant_name, day)
+            # Find the specific LinkedIn job poster to reach out to directly.
+            if poster_finder is not None:
+                poster = poster_finder.find_poster(job.url, company=job.company_canonical)
+                if poster:
+                    repo.upsert_contact(poster)
+                    counts["posters"] += 1
+                    logger.info("LinkedIn poster for '%s': %s (%s)",
+                                job.title, poster.name, poster.role_type)
     return counts
 
 
@@ -184,6 +193,13 @@ def main() -> None:
     dry_run = os.environ.get("AUTO_APPLY_LIVE", "").lower() != "true"
     auto_applier = AutoApplier(applicant, dry_run=dry_run)
 
+    # LinkedIn job-poster discovery (Phase 8) — enabled only if APIFY_TOKEN is set.
+    poster_finder = None
+    apify = os.environ.get("APIFY_TOKEN")
+    if apify:
+        from network.linkedin_poster import LinkedInPosterFinder
+        poster_finder = LinkedInPosterFinder(apify)
+
     repo = SqliteRepository(os.environ.get("DB_PATH", "data/jobs.sqlite"))
     result = run(
         repo=repo,
@@ -191,6 +207,7 @@ def main() -> None:
         drafter=drafter,
         apply_queue=ApplicationDraftQueue(),
         auto_applier=auto_applier,
+        poster_finder=poster_finder,
         applicant_name=os.environ.get("APPLICANT_NAME", ""),
         base_summary=os.environ.get("RESUME_SUMMARY", ""),
     )
