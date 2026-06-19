@@ -1,7 +1,7 @@
 {
-  "version": "1.0",
-  "last_updated": "2026-06-19",
-  "reason": "Current employer and affiliates - NEVER apply, email, scrape, or contact. This is the single source of truth for exclusions; all components import from here.",
+  "version": "1.1",
+  "last_updated": "2026-06-20",
+  "reason": "Companies to NEVER apply, email, scrape, or contact. Two groups: (1) current employer + affiliates (conflict of interest); (2) consulting / IT-services firms (not target in-house employers). This is the single source of truth; all components import from here.",
   "excluded_companies": [
     {
       "canonical": "Sumitomo Mitsui Banking Corporation",
@@ -19,5 +19,28 @@
       "canonical": "Japan Research Institute",
       "aliases": ["JRI", "The Japan Research Institute"]
     }
+  ],
+  "excluded_consulting": [
+    {
+      "canonical": "Consulting",
+      "aliases": ["Consultancy"],
+      "note": "Catch-all: any firm with 'consulting' or 'consultancy' in its name (incl. consulting-named recruitment agencies)."
+    },
+    {"canonical": "Accenture", "aliases": []},
+    {"canonical": "Deloitte", "aliases": []},
+    {"canonical": "PricewaterhouseCoopers", "aliases": ["PwC"]},
+    {"canonical": "Ernst Young", "aliases": ["EY"]},
+    {"canonical": "KPMG", "aliases": []},
+    {"canonical": "McKinsey", "aliases": []},
+    {"canonical": "Bain", "aliases": []},
+    {"canonical": "Capgemini", "aliases": []},
+    {"canonical": "Cognizant", "aliases": []},
+    {"canonical": "Infosys", "aliases": []},
+    {"canonical": "Tata Consultancy Services", "aliases": ["TCS"]},
+    {"canonical": "Wipro", "aliases": []},
+    {"canonical": "Tech Mahindra", "aliases": []},
+    {"canonical": "Synechron", "aliases": []},
+    {"canonical": "NTT Data", "aliases": []},
+    {"canonical": "DXC Technology", "aliases": ["DXC"]}
   ]
 }

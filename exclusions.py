@@ -46,8 +46,9 @@ def _excluded_token_sets() -> tuple[frozenset[str], ...]:
         ) from e
     sets = {
         frozenset(_normalize(alias).split())
-        for entry in data["excluded_companies"]
-        for alias in (entry["canonical"], *entry["aliases"])
+        for group in ("excluded_companies", "excluded_consulting")
+        for entry in data.get(group, [])
+        for alias in (entry["canonical"], *entry.get("aliases", []))
     }
     sets.discard(frozenset())
     return tuple(sets)
