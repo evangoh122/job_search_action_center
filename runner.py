@@ -38,8 +38,11 @@ DEFAULT_TERMS = [
 ]
 
 
-def sources(apify_token: str = "") -> list[RawJob]:
-    """Live job sources: MyCareersFuture (SG) + LinkedIn (when APIFY_TOKEN is set)."""
+def sources(apify_token: str = "", include_greenhouse: bool = True) -> list[RawJob]:
+    """Live job sources: MyCareersFuture (SG) + LinkedIn (when APIFY_TOKEN is set)
+    + Greenhouse (large-fintech boards). Each source is best-effort and isolated."""
+    import os
+
     jobs = MyCareersFutureSource(DEFAULT_TERMS, max_age_days=1).fetch()
     if apify_token:
         try:
@@ -48,6 +51,17 @@ def sources(apify_token: str = "") -> list[RawJob]:
             logger.info("LinkedIn source added %d jobs", len(li_jobs))
         except Exception:
             logger.warning("LinkedIn source failed — continuing with MCF only", exc_info=True)
+    if include_greenhouse:
+        try:
+            from sources.greenhouse import GreenhouseSource
+
+            # GREENHOUSE_LOCATION="" disables the location filter (pull all geos).
+            loc = os.environ.get("GREENHOUSE_LOCATION", "Singapore") or None
+            gh_jobs = GreenhouseSource(location_contains=loc, max_age_days=7).fetch()
+            jobs.extend(gh_jobs)
+            logger.info("Greenhouse source added %d jobs", len(gh_jobs))
+        except Exception:
+            logger.warning("Greenhouse source failed — continuing without it", exc_info=True)
     return jobs
 
 
