@@ -73,31 +73,31 @@ def _within_24h(raw: RawJob) -> bool:
     return raw.posted_at is not None and raw.posted_at >= datetime.now() - timedelta(days=1)
 
 
-def _track_contact(c, crm, airtable) -> str | None:
-    """Mirror a contact into HubSpot (open-tracking) + Airtable. Returns the Airtable rec id."""
+def _track_contact(c, crm, tracker) -> str | None:
+    """Mirror a contact into HubSpot (open-tracking) + the Sheets tracker. Returns its key."""
     if crm is not None:
         try:
             crm.upsert_contact(c)
         except Exception:
             logger.warning("HubSpot contact upsert failed for %s", c.email or c.name, exc_info=True)
-    if airtable is not None:
+    if tracker is not None:
         try:
-            return airtable.upsert_contact(c)
+            return tracker.upsert_contact(c)
         except Exception:
-            logger.warning("Airtable contact upsert failed for %s", c.email or c.name, exc_info=True)
+            logger.warning("Sheets contact upsert failed for %s", c.email or c.name, exc_info=True)
     return None
 
 
 def _run_outreach(job, repo, finder, drafter, applicant_name, day,
-                  crm=None, airtable=None, job_rec_id=None) -> int:
+                  crm=None, tracker=None, job_rec_id=None) -> int:
     """Track 2: email recruiter + hiring manager, respecting the daily outreach cap.
-    Contacts are mirrored to HubSpot (open-tracking) + Airtable; each email is logged."""
+    Contacts are mirrored to HubSpot (open-tracking) + Google Sheets; each email is logged."""
     if finder is None or drafter is None:
         return 0
     contacts = finder.find_people(job.company_canonical, max_each=1)
     contact_rec_by_email = {}
     for c in contacts:
-        rec = _track_contact(c, crm, airtable)
+        rec = _track_contact(c, crm, tracker)
         if rec and c.email:
             contact_rec_by_email[c.email] = rec
     drafted = 0
@@ -107,11 +107,11 @@ def _run_outreach(job, repo, finder, drafter, applicant_name, day,
             break
         drafter.create_draft(draft)
         repo.incr_action("outreach", day)
-        if airtable is not None:
+        if tracker is not None:
             try:
-                airtable.record_outreach(draft, job_rec_id, contact_rec_by_email.get(draft.to_email))
+                tracker.record_outreach(draft, job_rec_id, contact_rec_by_email.get(draft.to_email))
             except Exception:
-                logger.warning("Airtable outreach log failed for %s", draft.to_email, exc_info=True)
+                logger.warning("Sheets outreach log failed for %s", draft.to_email, exc_info=True)
         drafted += 1
     return drafted
 
@@ -149,7 +149,7 @@ def run(
     apply_queue=None,
     auto_applier=None,
     poster_finder=None,
-    airtable=None,
+    tracker=None,
     crm=None,
     applicant_name: str = "",
     base_summary: str = "",
@@ -175,12 +175,12 @@ def run(
         repo.upsert_job(job)
         counts["stored"] += 1
         job_rec_id = None
-        if airtable is not None:  # mirror to the Airtable job board
+        if tracker is not None:  # mirror to the Google Sheets job board
             try:
-                job_rec_id = airtable.upsert_job(job)
-                counts["airtable"] = counts.get("airtable", 0) + 1
+                job_rec_id = tracker.upsert_job(job)
+                counts["sheets"] = counts.get("sheets", 0) + 1
             except Exception:
-                logger.warning("Airtable upsert failed for %s", job.title, exc_info=True)
+                logger.warning("Sheets upsert failed for %s", job.title, exc_info=True)
 
         # Track 1 — apply
         if job.tier == "A":
@@ -201,14 +201,14 @@ def run(
             counts["qualified"] += 1
             counts["emails"] += _run_outreach(
                 job, repo, finder, drafter, applicant_name, day,
-                crm=crm, airtable=airtable, job_rec_id=job_rec_id,
+                crm=crm, tracker=tracker, job_rec_id=job_rec_id,
             )
             # Find the specific LinkedIn job poster to reach out to directly.
             if poster_finder is not None:
                 poster = poster_finder.find_poster(job.url, company=job.company_canonical)
                 if poster:
                     repo.upsert_contact(poster)
-                    _track_contact(poster, crm, airtable)  # mirror to HubSpot + Airtable
+                    _track_contact(poster, crm, tracker)  # mirror to HubSpot + Sheets
                     counts["posters"] += 1
                     logger.info("LinkedIn poster for '%s': %s (%s)",
                                 job.title, poster.name, poster.role_type)
@@ -237,6 +237,31 @@ def _build_drafter_from_env():
         return GmailDrafter(gmail_token, sender=sender)
     logger.info("Gmail not configured — using local review-queue JSONL fallback.")
     return ReviewQueueDrafter()
+
+
+def _build_sheets_from_env():
+    """Google Sheets tracker if a service account + spreadsheet id are configured.
+
+    GOOGLE_SERVICE_ACCOUNT_JSON may be a path to the key file or the raw JSON itself
+    (handy for CI secrets). Returns None when not configured, so the apply track still runs.
+    """
+    import json
+    import os
+
+    sa = os.environ.get("GOOGLE_SERVICE_ACCOUNT_JSON")
+    spreadsheet_id = os.environ.get("SPREADSHEET_ID")
+    if not (sa and spreadsheet_id):
+        logger.info("Google Sheets not configured — tracker disabled (apply track still runs).")
+        return None
+    from store.google_sheets_repo import GoogleSheetsRepository
+
+    try:
+        if os.path.exists(sa):
+            return GoogleSheetsRepository.from_service_account_file(sa, spreadsheet_id)
+        return GoogleSheetsRepository.from_service_account_info(json.loads(sa), spreadsheet_id)
+    except Exception:
+        logger.warning("Google Sheets auth failed — tracker disabled.", exc_info=True)
+        return None
 
 
 def _build_outreach_from_env():
@@ -286,17 +311,9 @@ def main() -> None:
         from network.linkedin_poster import LinkedInPosterFinder
         poster_finder = LinkedInPosterFinder(apify)
 
-    # Airtable job board — enabled if token + base id are set (Jobs + Contacts + Outreach).
-    airtable = None
-    at_token, at_base = os.environ.get("AIRTABLE_TOKEN"), os.environ.get("AIRTABLE_BASE_ID")
-    if at_token and at_base:
-        from store.airtable_repo import AirtableRepository
-        airtable = AirtableRepository(
-            at_token, at_base,
-            os.environ.get("AIRTABLE_JOBS_TABLE", "Jobs"),
-            os.environ.get("AIRTABLE_CONTACTS_TABLE", "Contacts"),
-            os.environ.get("AIRTABLE_OUTREACH_TABLE", "Outreach"),
-        )
+    # Google Sheets job board — enabled if a service account + spreadsheet id are set
+    # (Jobs + Contacts + Outreach tabs, auto-created on first run).
+    tracker = _build_sheets_from_env()
 
     # HubSpot CRM — used only to mirror contacts so the Gmail Sales extension tracks opens.
     crm = None
@@ -313,7 +330,7 @@ def main() -> None:
         apply_queue=ApplicationDraftQueue(),
         auto_applier=auto_applier,
         poster_finder=poster_finder,
-        airtable=airtable,
+        tracker=tracker,
         crm=crm,
         applicant_name=os.environ.get("APPLICANT_NAME", ""),
         base_summary=os.environ.get("RESUME_SUMMARY", ""),

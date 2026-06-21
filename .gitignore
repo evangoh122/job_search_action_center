@@ -2,6 +2,12 @@
 .env
 .env.*
 hubspot.config.yml
+secrets/
+*service-account*.json
+
+# Local data exports (contain personal contact info)
+airtable_export.json
+drive_export/
 
 # Personal resume / CV files — never commit
 resume/

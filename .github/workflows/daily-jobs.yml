@@ -1,0 +1,58 @@
+name: Daily job pull
+
+# Pulls fresh jobs, scores/tiers them, and writes them into the Google Sheets tracker.
+# Also refreshes the Networking Tracker tab from Gmail (best-effort).
+
+on:
+  schedule:
+    - cron: "0 1 * * *"   # 01:00 UTC daily (~09:00 SGT)
+  workflow_dispatch: {}     # allow manual runs from the Actions tab
+
+concurrency:
+  group: daily-jobs
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install
+        run: pip install -e .
+
+      - name: Pull jobs into the sheet
+        env:
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
+          HUNTER_API_KEY: ${{ secrets.HUNTER_API_KEY }}
+          APIFY_TOKEN: ${{ secrets.APIFY_TOKEN }}
+          HUBSPOT_TOKEN: ${{ secrets.HUBSPOT_TOKEN }}
+          GMAIL_CLIENT_ID: ${{ secrets.GMAIL_CLIENT_ID }}
+          GMAIL_CLIENT_SECRET: ${{ secrets.GMAIL_CLIENT_SECRET }}
+          GMAIL_REFRESH_TOKEN: ${{ secrets.GMAIL_REFRESH_TOKEN }}
+          APPLICANT_NAME: ${{ secrets.APPLICANT_NAME }}
+          APPLICANT_EMAIL: ${{ secrets.APPLICANT_EMAIL }}
+          APPLICANT_LINKEDIN: ${{ secrets.APPLICANT_LINKEDIN }}
+          RESUME_URL: ${{ secrets.RESUME_URL }}
+          RESUME_SUMMARY: ${{ secrets.RESUME_SUMMARY }}
+          # Auto-apply stays dry-run unless this is explicitly set to "true".
+          AUTO_APPLY_LIVE: ${{ secrets.AUTO_APPLY_LIVE }}
+        run: python runner.py
+
+      - name: Refresh networking contacts from Gmail
+        continue-on-error: true   # missing Gmail creds shouldn't fail the job pull
+        env:
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
+          GMAIL_CLIENT_ID: ${{ secrets.GMAIL_CLIENT_ID }}
+          GMAIL_CLIENT_SECRET: ${{ secrets.GMAIL_CLIENT_SECRET }}
+          GMAIL_REFRESH_TOKEN: ${{ secrets.GMAIL_REFRESH_TOKEN }}
+          APPLICANT_EMAIL: ${{ secrets.APPLICANT_EMAIL }}
+        run: python scrape_network.py

@@ -1,0 +1,35 @@
+name: Daily sheet backup
+
+# Snapshots every tab of the tracker spreadsheet into date-stamped tabs in a SEPARATE
+# backup spreadsheet (BACKUP_SPREADSHEET_ID). Runs after the daily job pull.
+
+on:
+  schedule:
+    - cron: "0 2 * * *"   # 02:00 UTC daily — an hour after the job pull
+  workflow_dispatch: {}
+
+concurrency:
+  group: backup-sheet
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install
+        run: pip install -e .
+
+      - name: Snapshot tracker into the backup spreadsheet
+        env:
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
+          BACKUP_SPREADSHEET_ID: ${{ secrets.BACKUP_SPREADSHEET_ID }}
+        run: python backup_sheet.py
