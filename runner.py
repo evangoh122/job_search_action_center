@@ -248,11 +248,16 @@ def run(
             logger.warning("Sheets aging-formula refresh failed", exc_info=True)
 
     counts["new"] = len(new_jobs)
-    if notifier is not None and new_jobs:  # ping new roles to apply for
+    # Notify only for allowlisted companies (Notify-list.json / NOTIFY_COMPANIES).
+    from notify_list import notify_company_match
+
+    to_notify = [j for j in new_jobs if notify_company_match(j.company_canonical)]
+    counts["notified"] = 0
+    if notifier is not None and to_notify:
         try:
-            notifier.send_new_jobs(new_jobs)
+            counts["notified"] = notifier.send_new_jobs(to_notify)
         except Exception:
-            logger.warning("Telegram notification failed", exc_info=True)
+            logger.warning("New-role notification failed", exc_info=True)
     return counts
 
 
@@ -306,17 +311,20 @@ def _build_sheets_from_env():
 
 
 def _build_notifier_from_env():
-    """Telegram notifier if TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID are set, else None."""
+    """New-role notifier: Telegram if fully configured, else a local JSON feed (no setup)."""
     import os
 
     token = os.environ.get("TELEGRAM_BOT_TOKEN")
     chat_id = os.environ.get("TELEGRAM_CHAT_ID")
-    if not (token and chat_id):
-        logger.info("Telegram not configured — new-role notifications disabled.")
-        return None
-    from network.telegram_notifier import TelegramNotifier
+    if token and chat_id:
+        from network.telegram_notifier import TelegramNotifier
+        logger.info("New-role notifications -> Telegram.")
+        return TelegramNotifier(token, chat_id)
+    from network.json_feed import JsonFeedNotifier
 
-    return TelegramNotifier(token, chat_id)
+    path = os.environ.get("JSON_FEED_PATH", "data/new_roles.json")
+    logger.info("New-role notifications -> JSON feed at %s", path)
+    return JsonFeedNotifier(path)
 
 
 def _build_outreach_from_env():

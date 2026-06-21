@@ -59,3 +59,10 @@ jobs:
           GMAIL_REFRESH_TOKEN: ${{ secrets.GMAIL_REFRESH_TOKEN }}
           APPLICANT_EMAIL: ${{ secrets.APPLICANT_EMAIL }}
         run: python scrape_network.py
+
+      - name: Upload new-roles JSON feed
+        if: always() && hashFiles('data/new_roles.json') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: new-roles
+          path: data/new_roles.json

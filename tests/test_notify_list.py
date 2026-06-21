@@ -1,0 +1,45 @@
+from __future__ import annotations
+
+import notify_list
+from notify_list import notify_company_match
+
+
+def _reset():
+    notify_list._notify_token_sets.cache_clear()
+
+
+def test_allowlist_matches_with_suffix_variants(monkeypatch):
+    monkeypatch.setenv("NOTIFY_COMPANIES", "JPMorgan,DBS,Stripe,Databricks")
+    _reset()
+    assert notify_company_match("JPMorgan Chase") is True   # token subset
+    assert notify_company_match("DBS Bank") is True
+    assert notify_company_match("Stripe") is True
+    assert notify_company_match("Databricks Inc") is True
+
+
+def test_non_allowlisted_company_filtered(monkeypatch):
+    monkeypatch.setenv("NOTIFY_COMPANIES", "JPMorgan,DBS")
+    _reset()
+    assert notify_company_match("Thunes") is False
+    assert notify_company_match("Coinbase") is False
+
+
+def test_empty_list_notifies_all(monkeypatch):
+    monkeypatch.setenv("NOTIFY_COMPANIES", "")
+    _reset()
+    assert notify_company_match("Anything At All") is True
+
+
+def test_blank_company_not_matched(monkeypatch):
+    monkeypatch.setenv("NOTIFY_COMPANIES", "DBS")
+    _reset()
+    assert notify_company_match("") is False
+
+
+def test_default_file_has_seed_companies(monkeypatch):
+    monkeypatch.delenv("NOTIFY_COMPANIES", raising=False)
+    _reset()
+    # Notify-list.json ships with the seed set.
+    assert notify_company_match("DBS Bank") is True
+    assert notify_company_match("Some Random Co") is False
+    _reset()

@@ -1,0 +1,9 @@
+{
+  "description": "Companies to notify about new roles. Notifications (JSON feed / Telegram) fire ONLY for these. Add the full list here; matching is case-insensitive on whole tokens, so 'DBS' matches 'DBS Bank' and 'JPMorgan' matches 'JPMorgan Chase'. Empty list = notify for all companies.",
+  "companies": [
+    "JPMorgan",
+    "DBS",
+    "Stripe",
+    "Databricks"
+  ]
+}
