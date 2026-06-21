@@ -56,11 +56,8 @@ def _gh_job(score: float | None, company: str = "Stripe") -> Job:
                title="Data Scientist", url="https://x", ats_type="greenhouse", score=score)
 
 
-def test_greenhouse_source_is_tier_a():
-    # Source-curated Tier A: large-fintech boards are Tier A regardless of score.
-    assert apply_tier(_gh_job(60.0)) == "A"
-    assert apply_tier(_gh_job(20.0)) == "A"  # even below the draft floor
-
-
-def test_greenhouse_none_score_is_none():
-    assert apply_tier(_gh_job(None)) is None  # no score -> can't tier
+def test_greenhouse_tiered_normally_not_special_cased():
+    # Greenhouse is tiered like any source: by score + target priority, no Tier-A shortcut.
+    assert apply_tier(_gh_job(60.0)) == "B"   # clears floor, but Stripe isn't a priority-1 bank
+    assert apply_tier(_gh_job(20.0)) is None  # below the draft floor
+    assert apply_tier(_gh_job(None)) is None

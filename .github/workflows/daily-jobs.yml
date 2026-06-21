@@ -42,6 +42,9 @@ jobs:
           APPLICANT_LINKEDIN: ${{ secrets.APPLICANT_LINKEDIN }}
           RESUME_URL: ${{ secrets.RESUME_URL }}
           RESUME_SUMMARY: ${{ secrets.RESUME_SUMMARY }}
+          # Telegram digest of new roles to apply for.
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           # Auto-apply stays dry-run unless this is explicitly set to "true".
           AUTO_APPLY_LIVE: ${{ secrets.AUTO_APPLY_LIVE }}
         run: python runner.py

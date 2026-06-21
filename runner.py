@@ -174,6 +174,7 @@ def run(
     auto_applier=None,
     poster_finder=None,
     tracker=None,
+    notifier=None,
     crm=None,
     applicant_name: str = "",
     base_summary: str = "",
@@ -184,6 +185,7 @@ def run(
     day = datetime.now().date().isoformat()
     counts = {"processed": 0, "stored": 0, "excluded": 0, "skipped": 0,
               "qualified": 0, "tier_a": 0, "app_drafts": 0, "emails": 0, "posters": 0}
+    new_jobs: list[Job] = []  # roles newly added to the tracker this run (for notifications)
     for raw in raws:
         counts["processed"] += 1
         if not (raw.company or "").strip():
@@ -203,6 +205,8 @@ def run(
             try:
                 job_rec_id = tracker.upsert_job(job)
                 counts["sheets"] = counts.get("sheets", 0) + 1
+                if getattr(tracker, "last_was_new", False):
+                    new_jobs.append(job)
             except Exception:
                 logger.warning("Sheets upsert failed for %s", job.title, exc_info=True)
 
@@ -242,6 +246,13 @@ def run(
             tracker.refresh_aging_formulas()
         except Exception:
             logger.warning("Sheets aging-formula refresh failed", exc_info=True)
+
+    counts["new"] = len(new_jobs)
+    if notifier is not None and new_jobs:  # ping new roles to apply for
+        try:
+            notifier.send_new_jobs(new_jobs)
+        except Exception:
+            logger.warning("Telegram notification failed", exc_info=True)
     return counts
 
 
@@ -292,6 +303,20 @@ def _build_sheets_from_env():
     except Exception:
         logger.warning("Google Sheets auth failed — tracker disabled.", exc_info=True)
         return None
+
+
+def _build_notifier_from_env():
+    """Telegram notifier if TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID are set, else None."""
+    import os
+
+    token = os.environ.get("TELEGRAM_BOT_TOKEN")
+    chat_id = os.environ.get("TELEGRAM_CHAT_ID")
+    if not (token and chat_id):
+        logger.info("Telegram not configured — new-role notifications disabled.")
+        return None
+    from network.telegram_notifier import TelegramNotifier
+
+    return TelegramNotifier(token, chat_id)
 
 
 def _build_outreach_from_env():
@@ -361,6 +386,7 @@ def main() -> None:
         auto_applier=auto_applier,
         poster_finder=poster_finder,
         tracker=tracker,
+        notifier=_build_notifier_from_env(),
         crm=crm,
         applicant_name=os.environ.get("APPLICANT_NAME", ""),
         base_summary=os.environ.get("RESUME_SUMMARY", ""),

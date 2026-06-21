@@ -97,6 +97,7 @@ class GoogleSheetsRepository:
         }
         self._ready = False  # tabs + headers ensured?
         self._sheet_ids: dict[str, int] = {}  # tab title -> sheetId (filled by _ensure_ready)
+        self.last_was_new = False  # was the most recent upsert a new append?
 
     # ── auth constructors ────────────────────────────────────────────────────
     @classmethod
@@ -173,10 +174,12 @@ class GoogleSheetsRepository:
         self._ready = True
 
     def _upsert_row(self, tab: str, key: str, row: list) -> str:
-        """Match key in column A (data rows); update that row in place or append. Returns key."""
+        """Match key in column A (data rows); update that row in place or append. Returns key.
+        Sets self.last_was_new = True when the row was newly appended (not previously present)."""
         self._ensure_ready()
         col_a = self._values_get(f"'{tab}'!A2:A")
         match = next((i + 2 for i, cell in enumerate(col_a) if cell and cell[0] == key), None)
+        self.last_was_new = match is None
         if match is not None:
             last = _col_letter(len(row))
             self._values_update(f"'{tab}'!A{match}:{last}{match}", row)
