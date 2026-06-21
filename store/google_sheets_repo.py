@@ -54,13 +54,6 @@ _GREEN = {"red": 0.20, "green": 0.66, "blue": 0.33}
 _ORANGE = {"red": 0.95, "green": 0.55, "blue": 0.16}
 
 
-def _aging_days(posted_at: datetime | None) -> int | str:
-    """Days since the job was posted (refreshed on every run). Blank if no posted date."""
-    if posted_at is None:
-        return ""
-    return max((datetime.now().date() - posted_at.date()).days, 0)
-
-
 def _col_letter(n: int) -> str:
     """1-based column index -> A1 letter (1 -> A). Sufficient for <=26-column tabs."""
     s = ""
@@ -103,6 +96,7 @@ class GoogleSheetsRepository:
             networking_tab: _ORANGE,
         }
         self._ready = False  # tabs + headers ensured?
+        self._sheet_ids: dict[str, int] = {}  # tab title -> sheetId (filled by _ensure_ready)
 
     # ── auth constructors ────────────────────────────────────────────────────
     @classmethod
@@ -154,6 +148,7 @@ class GoogleSheetsRepository:
         meta = self.http("GET", self._url(), None)
         existing = {s["properties"]["title"]: s["properties"]["sheetId"]
                     for s in meta.get("sheets", [])}
+        self._sheet_ids = dict(existing)
         requests: list[dict] = []
         for tab, color in self._tab_colors.items():
             if tab in existing:  # recolour in place
@@ -166,7 +161,11 @@ class GoogleSheetsRepository:
                     "properties": {"title": tab, "tabColor": color},
                 }})
         if requests:
-            self.http("POST", self._url(":batchUpdate"), {"requests": requests})
+            res = self.http("POST", self._url(":batchUpdate"), {"requests": requests})
+            for reply in (res or {}).get("replies", []):
+                props = reply.get("addSheet", {}).get("properties")
+                if props:
+                    self._sheet_ids[props["title"]] = props["sheetId"]
         for tab, headers in self._headers_by_tab.items():
             first = self._values_get(f"'{tab}'!1:1")
             if not first or not first[0]:
@@ -198,11 +197,36 @@ class GoogleSheetsRepository:
             job.source,
             job.posted_at.date().isoformat() if job.posted_at is not None else "",
             (job.description or "")[:_MAX_CELL],
-            _aging_days(job.posted_at),
+            # Aging (column K) is a live formula managed by refresh_aging_formulas(),
+            # not written here — a RAW upsert would overwrite the formula with text.
         ]
 
     def upsert_job(self, job: Job) -> str:
         return self._upsert_row(self.jobs_tab, job.dedupe_key, self._job_row(job))
+
+    def refresh_aging_formulas(self) -> int:
+        """(Re)write the Aging column (K) as live formulas: days since Posted (col I),
+        recomputed by the sheet itself via TODAY(). Call after a run / to backfill.
+        Returns the number of data rows written."""
+        self._ensure_ready()
+        n = len(self._values_get(f"'{self.jobs_tab}'!A2:A"))
+        if n == 0:
+            return 0
+        # One formula per data row (rows 2..n+1); blank Posted -> blank Aging.
+        formulas = [[f'=IF($I{r}="","",TODAY()-DATEVALUE($I{r}))'] for r in range(2, n + 2)]
+        a1 = quote(f"'{self.jobs_tab}'!K2:K{n + 1}")
+        self.http("PUT", self._url(f"/values/{a1}?valueInputOption=USER_ENTERED"),
+                  {"values": formulas})
+        # Show Aging as a whole number (avoid the sheet's inherited 2-decimal date format).
+        sid = self._sheet_ids.get(self.jobs_tab)
+        if sid is not None:
+            self.http("POST", self._url(":batchUpdate"), {"requests": [{"repeatCell": {
+                "range": {"sheetId": sid, "startRowIndex": 1, "startColumnIndex": 10,
+                          "endColumnIndex": 11},
+                "cell": {"userEnteredFormat": {"numberFormat": {"type": "NUMBER", "pattern": "0"}}},
+                "fields": "userEnteredFormat.numberFormat",
+            }}]})
+        return n
 
     # ── Contacts ─────────────────────────────────────────────────────────────
     @staticmethod

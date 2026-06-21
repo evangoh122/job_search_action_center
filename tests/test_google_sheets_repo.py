@@ -46,26 +46,31 @@ def _updated(calls) -> list:
 
 # ── Jobs ─────────────────────────────────────────────────────────────────────
 def test_upsert_job_creates_when_absent():
-    from datetime import date
     http, calls = _fake([])
     key = _repo(http).upsert_job(_job())
     assert key == "dbs|head of data|u1"
     row = _appended(calls)
-    expected_aging = (date.today() - date(2026, 6, 19)).days
+    # Aging (col K) is a live formula, not written by the row upsert -> 10 columns.
     assert row == ["dbs|head of data|u1", "Head of Data", "DBS", "https://x/1",
                    88.0, "B", "new", "mycareersfuture", "2026-06-19",
-                   "machine learning Databricks", expected_aging]
+                   "machine learning Databricks"]
 
 
-def test_aging_blank_without_posted_date():
-    from store.google_sheets_repo import _aging_days
-    job = _job()
-    job.posted_at = None
-    http, calls = _fake([])
-    _repo(http).upsert_job(job)
-    assert _appended(calls)[10] == ""        # no posted date -> blank Aging
-    assert isinstance(_aging_days(job.posted_at), str)
-    assert _aging_days(datetime(2026, 6, 19)) >= 0  # integer days otherwise
+def test_refresh_aging_writes_live_formulas():
+    # 3 data rows present in column A.
+    http, calls = _fake([["k1"], ["k2"], ["k3"]])
+    repo = _repo(http)
+    repo._sheet_ids = {"Jobs": 0}
+    n = repo.refresh_aging_formulas()
+    assert n == 3
+    put = [c for c in calls if c[0] == "PUT" and "USER_ENTERED" in c[1]][0]
+    assert "K2%3AK4" in put[1]  # writes K2:K4 (rows 2..4)
+    formulas = [v[0] for v in put[2]["values"]]
+    assert formulas[0] == '=IF($I2="","",TODAY()-DATEVALUE($I2))'
+    assert formulas[2] == '=IF($I4="","",TODAY()-DATEVALUE($I4))'  # row-relative
+    # whole-number format applied to column K
+    fmt = [c for c in calls if c[0] == "POST" and ":batchUpdate" in c[1]][-1]
+    assert fmt[2]["requests"][0]["repeatCell"]["range"]["startColumnIndex"] == 10
 
 
 def test_upsert_job_updates_when_present():
@@ -73,7 +78,7 @@ def test_upsert_job_updates_when_present():
     key = _repo(http).upsert_job(_job())
     assert key == "dbs|head of data|u1"
     put = [c for c in calls if c[0] == "PUT"][0]
-    assert "A2%3AK2" in put[1]  # row 2, columns A..K updated in place (incl. Aging)
+    assert "A2%3AJ2" in put[1]  # row 2, columns A..J updated (K/Aging is formula-managed)
     assert not any(":append" in c[1] for c in calls)
 
 
