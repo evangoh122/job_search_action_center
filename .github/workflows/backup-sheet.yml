@@ -1,11 +1,11 @@
 name: Daily sheet backup
 
 # Snapshots every tab of the tracker spreadsheet into date-stamped tabs in a SEPARATE
-# backup spreadsheet (BACKUP_SPREADSHEET_ID). Runs after the daily job pull.
+# backup spreadsheet (BACKUP_SPREADSHEET_ID). Runs roughly every 15 days.
 
 on:
   schedule:
-    - cron: "0 2 * * *"   # 02:00 UTC daily — an hour after the job pull
+    - cron: "0 2 1,16 * *"   # 02:00 UTC on the 1st & 16th (~every 15 days)
   workflow_dispatch: {}
 
 concurrency:
