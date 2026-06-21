@@ -62,6 +62,16 @@ def sources(apify_token: str = "", include_greenhouse: bool = True) -> list[RawJ
             logger.info("Greenhouse source added %d jobs", len(gh_jobs))
         except Exception:
             logger.warning("Greenhouse source failed — continuing without it", exc_info=True)
+    try:
+        from sources.workday import WorkdaySource
+
+        # Target banks on Workday (Citi, Deutsche Bank, Morgan Stanley, ...).
+        wd_loc = os.environ.get("WORKDAY_LOCATION", "Singapore") or None
+        wd_jobs = WorkdaySource(location_contains=wd_loc).fetch()
+        jobs.extend(wd_jobs)
+        logger.info("Workday source added %d jobs", len(wd_jobs))
+    except Exception:
+        logger.warning("Workday source failed — continuing without it", exc_info=True)
     return jobs
 
 

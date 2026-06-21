@@ -49,3 +49,18 @@ def test_none_score():
     job = _job("Data Scientist", "greenhouse", None, company="DBS")
     assert apply_tier(job) is None
     assert should_outreach(job) is False
+
+
+def _gh_job(score: float | None, company: str = "Stripe") -> Job:
+    return Job(id="t", source="greenhouse", company_canonical=company, dedupe_key="k",
+               title="Data Scientist", url="https://x", ats_type="greenhouse", score=score)
+
+
+def test_greenhouse_source_is_tier_a():
+    # Source-based Tier A: large-fintech boards qualify without being a priority-1 bank.
+    assert apply_tier(_gh_job(60.0)) == "A"
+    assert apply_tier(_gh_job(56.0)) == "A"  # just above the draft floor
+
+
+def test_greenhouse_below_floor_not_tier_a():
+    assert apply_tier(_gh_job(50.0)) is None  # below floor -> not even a draft

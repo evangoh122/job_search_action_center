@@ -43,6 +43,20 @@ DEFAULT_FINTECH_BOARDS: dict[str, str] = {
     "thunes": "Thunes",
     "marqeta": "Marqeta",
     "blockchain": "Blockchain.com",
+    "monzo": "Monzo",
+    "nubank": "Nubank",
+    "n26": "N26",
+    "betterment": "Betterment",
+    "toast": "Toast",
+    "mercury": "Mercury",
+    "sumup": "SumUp",
+    "gemini": "Gemini",
+    "fireblocks": "Fireblocks",
+    "tide": "Tide",
+    "carta": "Carta",
+    "gusto": "Gusto",
+    "melio": "Melio",
+    "current": "Current",
 }
 
 # Title keywords that flag a Data/AI leadership-ish role (client-side filter).
