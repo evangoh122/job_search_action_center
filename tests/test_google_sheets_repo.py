@@ -46,13 +46,26 @@ def _updated(calls) -> list:
 
 # ── Jobs ─────────────────────────────────────────────────────────────────────
 def test_upsert_job_creates_when_absent():
+    from datetime import date
     http, calls = _fake([])
     key = _repo(http).upsert_job(_job())
     assert key == "dbs|head of data|u1"
     row = _appended(calls)
+    expected_aging = (date.today() - date(2026, 6, 19)).days
     assert row == ["dbs|head of data|u1", "Head of Data", "DBS", "https://x/1",
                    88.0, "B", "new", "mycareersfuture", "2026-06-19",
-                   "machine learning Databricks"]
+                   "machine learning Databricks", expected_aging]
+
+
+def test_aging_blank_without_posted_date():
+    from store.google_sheets_repo import _aging_days
+    job = _job()
+    job.posted_at = None
+    http, calls = _fake([])
+    _repo(http).upsert_job(job)
+    assert _appended(calls)[10] == ""        # no posted date -> blank Aging
+    assert isinstance(_aging_days(job.posted_at), str)
+    assert _aging_days(datetime(2026, 6, 19)) >= 0  # integer days otherwise
 
 
 def test_upsert_job_updates_when_present():
@@ -60,7 +73,7 @@ def test_upsert_job_updates_when_present():
     key = _repo(http).upsert_job(_job())
     assert key == "dbs|head of data|u1"
     put = [c for c in calls if c[0] == "PUT"][0]
-    assert "A2%3AJ2" in put[1]  # row 2, columns A..J updated in place
+    assert "A2%3AK2" in put[1]  # row 2, columns A..K updated in place (incl. Aging)
     assert not any(":append" in c[1] for c in calls)
 
 

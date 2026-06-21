@@ -39,7 +39,7 @@ _BASE = "https://sheets.googleapis.com/v4/spreadsheets"
 _SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
 
 JOBS_HEADERS = ["DedupeKey", "Title", "Company", "URL", "Score", "Tier",
-                "Status", "Source", "Posted", "Description"]
+                "Status", "Source", "Posted", "Description", "Aging"]
 CONTACTS_HEADERS = ["Key", "Name", "Email", "Company", "Role", "Type",
                     "LinkedIn", "Confidence"]
 OUTREACH_HEADERS = ["Key", "Subject", "Body", "To", "Status", "Date", "Job", "Contact"]
@@ -52,6 +52,13 @@ _MAX_CELL = 40000  # Sheets caps a cell at 50k chars; stay well under
 # Tab colours (RGB 0-1). Job-application tabs green; networking tab orange.
 _GREEN = {"red": 0.20, "green": 0.66, "blue": 0.33}
 _ORANGE = {"red": 0.95, "green": 0.55, "blue": 0.16}
+
+
+def _aging_days(posted_at: datetime | None) -> int | str:
+    """Days since the job was posted (refreshed on every run). Blank if no posted date."""
+    if posted_at is None:
+        return ""
+    return max((datetime.now().date() - posted_at.date()).days, 0)
 
 
 def _col_letter(n: int) -> str:
@@ -191,6 +198,7 @@ class GoogleSheetsRepository:
             job.source,
             job.posted_at.date().isoformat() if job.posted_at is not None else "",
             (job.description or "")[:_MAX_CELL],
+            _aging_days(job.posted_at),
         ]
 
     def upsert_job(self, job: Job) -> str:
