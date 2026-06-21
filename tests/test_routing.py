@@ -57,10 +57,10 @@ def _gh_job(score: float | None, company: str = "Stripe") -> Job:
 
 
 def test_greenhouse_source_is_tier_a():
-    # Source-based Tier A: large-fintech boards qualify without being a priority-1 bank.
+    # Source-curated Tier A: large-fintech boards are Tier A regardless of score.
     assert apply_tier(_gh_job(60.0)) == "A"
-    assert apply_tier(_gh_job(56.0)) == "A"  # just above the draft floor
+    assert apply_tier(_gh_job(20.0)) == "A"  # even below the draft floor
 
 
-def test_greenhouse_below_floor_not_tier_a():
-    assert apply_tier(_gh_job(50.0)) is None  # below floor -> not even a draft
+def test_greenhouse_none_score_is_none():
+    assert apply_tier(_gh_job(None)) is None  # no score -> can't tier

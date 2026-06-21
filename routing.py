@@ -22,10 +22,10 @@ def apply_tier(job: Job) -> str | None:
     """
     if job.score is None:
         return None
+    if job.source in TIER_A_SOURCES:  # source-curated boards -> always Tier A
+        return "A"
     if job.score < DRAFT_FLOOR:
         return None
-    if job.source in TIER_A_SOURCES:
-        return "A"
     prio = target_priority(job.company_canonical)
     if (
         job.score >= AUTO_APPLY_THRESHOLD
