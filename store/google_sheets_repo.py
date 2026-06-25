@@ -231,6 +231,35 @@ class GoogleSheetsRepository:
             }}]})
         return n
 
+    def sort_jobs(self) -> None:
+        """Sort the Jobs tab by Score (Z-A) then Aging (A-Z)."""
+        self._ensure_ready()
+        sid = self._sheet_ids.get(self.jobs_tab)
+        if sid is None:
+            return
+        
+        request = {
+            "sortRange": {
+                "range": {
+                    "sheetId": sid,
+                    "startRowIndex": 1,
+                    "startColumnIndex": 0,
+                    "endColumnIndex": 11
+                },
+                "sortSpecs": [
+                    {
+                        "dimensionIndex": 4,  # Score column
+                        "sortOrder": "DESCENDING"
+                    },
+                    {
+                        "dimensionIndex": 10,  # Aging column
+                        "sortOrder": "ASCENDING"
+                    }
+                ]
+            }
+        }
+        self.http("POST", self._url(":batchUpdate"), {"requests": [request]})
+
     # ── Contacts ─────────────────────────────────────────────────────────────
     @staticmethod
     def _contact_key(c: Contact) -> str:

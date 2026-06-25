@@ -241,11 +241,12 @@ def run(
                     logger.info("LinkedIn poster for '%s': %s (%s)",
                                 job.title, poster.name, poster.role_type)
 
-    if tracker is not None:  # keep the Aging column live (formula recomputes daily)
+    if tracker is not None:  # keep the Aging column live and sort the sheet
         try:
             tracker.refresh_aging_formulas()
+            tracker.sort_jobs()
         except Exception:
-            logger.warning("Sheets aging-formula refresh failed", exc_info=True)
+            logger.warning("Sheets aging-formula refresh or sort failed", exc_info=True)
 
     counts["new"] = len(new_jobs)
     # Notify only for allowlisted companies (Notify-list.json / NOTIFY_COMPANIES).
