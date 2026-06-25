@@ -35,6 +35,10 @@ DEFAULT_TERMS = [
     "vice president analytics",
     "head of data science",
     "director analytics",
+    "ai product",
+    "ai business",
+    "head of ai",
+    "director ai",
 ]
 
 
