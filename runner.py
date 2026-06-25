@@ -39,6 +39,8 @@ DEFAULT_TERMS = [
     "ai business",
     "head of ai",
     "director ai",
+    "data analyst",
+    "data scientist",
 ]
 
 
