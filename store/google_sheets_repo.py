@@ -39,7 +39,7 @@ _BASE = "https://sheets.googleapis.com/v4/spreadsheets"
 _SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
 
 JOBS_HEADERS = ["DedupeKey", "Title", "Company", "URL", "Score", "Tier",
-                "Status", "Source", "Posted", "Description", "Aging"]
+                "Status", "Source", "Posted", "Description", "Aging", "Applied"]
 CONTACTS_HEADERS = ["Key", "Name", "Email", "Company", "Role", "Type",
                     "LinkedIn", "Confidence"]
 OUTREACH_HEADERS = ["Key", "Subject", "Body", "To", "Status", "Date", "Job", "Contact"]
@@ -169,7 +169,7 @@ class GoogleSheetsRepository:
                     self._sheet_ids[props["title"]] = props["sheetId"]
         for tab, headers in self._headers_by_tab.items():
             first = self._values_get(f"'{tab}'!1:1")
-            if not first or not first[0]:
+            if not first or not first[0] or len(first[0]) < len(headers):
                 self._values_update(f"'{tab}'!A1", headers)
         self._ready = True
 
@@ -244,9 +244,13 @@ class GoogleSheetsRepository:
                     "sheetId": sid,
                     "startRowIndex": 1,
                     "startColumnIndex": 0,
-                    "endColumnIndex": 11
+                    "endColumnIndex": 26  # Extend to cover user-added columns up to Z
                 },
                 "sortSpecs": [
+                    {
+                        "dimensionIndex": 11,  # Applied column (L)
+                        "sortOrder": "ASCENDING"
+                    },
                     {
                         "dimensionIndex": 4,  # Score column
                         "sortOrder": "DESCENDING"
