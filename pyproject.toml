@@ -21,3 +21,6 @@ testpaths = ["tests"]
 
 [tool.pyright]
 extraPaths = ["."]
+
+[tool.setuptools.packages.find]
+include = ["apply*", "store*", "config*", "sources*", "network*", "scripts*", "resume*"]
