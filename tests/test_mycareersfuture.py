@@ -105,3 +105,18 @@ def test_fetch_skips_malformed_entries() -> None:
 
     assert len(results) == 1
     assert results[0].company == "DataCo"
+
+
+def test_fetch_maps_salary_range() -> None:
+    today_iso = datetime.now().date().isoformat()
+    item = {
+        "uuid": "salary-job", "title": "Data Lead", "postedCompany": {"name": "Bank"},
+        "metadata": {"newPostingDate": today_iso},
+        "salary": {"minimum": 9000, "maximum": 13000, "type": {"id": "MONTH"}},
+        "salaryCurrency": "SGD",
+    }
+    source = MyCareersFutureSource(
+        ["data"], enrich=False, http_post=lambda url, payload: {"results": [item]})
+    job = source.fetch()[0]
+    assert (job.salary_min, job.salary_max, job.salary_currency, job.salary_period) == (
+        9000, 13000, "SGD", "MONTH")

@@ -3,11 +3,13 @@ from __future__ import annotations
 import logging
 import re
 from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
 
 import httpx
 
 from models import RawJob
+from salary import extract_salary
 from sources.base import JobSource
 
 logger = logging.getLogger(__name__)
@@ -53,6 +55,7 @@ class MyCareersFutureSource(JobSource):
         http_post: Callable[[str, dict], dict] | None = None,
         enrich: bool = True,
         http_get: Callable[[str], dict] | None = None,
+        detail_workers: int = 6,
     ) -> None:
         self.search_terms = search_terms
         self.max_age_days = max_age_days
@@ -60,6 +63,7 @@ class MyCareersFutureSource(JobSource):
         self.http_post = http_post if http_post is not None else _default_http_post
         self.enrich = enrich
         self.http_get = http_get if http_get is not None else _default_http_get
+        self.detail_workers = max(1, detail_workers)
 
     def _fetch_description(self, uuid: str) -> str:
         """Pull the full job description + skills from the per-job detail endpoint."""
@@ -96,7 +100,7 @@ class MyCareersFutureSource(JobSource):
                     if posted_at.date() < cutoff:
                         continue
 
-                    description = self._fetch_description(job_uuid) if self.enrich else ""
+                    salary = extract_salary(item)
                     results[job_uuid] = RawJob(
                         source="mycareersfuture",
                         company=item["postedCompany"]["name"],
@@ -104,10 +108,26 @@ class MyCareersFutureSource(JobSource):
                         url=f"https://www.mycareersfuture.gov.sg/job/{job_uuid}",
                         posted_at=posted_at,
                         ats_type="mycareersfuture",
-                        description=description,
+                        description="",
+                        salary_min=salary.minimum,
+                        salary_max=salary.maximum,
+                        salary_currency=salary.currency or "SGD",
+                        salary_period=salary.period,
                     )
                 except (KeyError, IndexError, ValueError, TypeError):
                     logger.warning("Skipping malformed entry: %s", item, exc_info=True)
                     continue
+
+        if self.enrich and results:
+            uuids = list(results)
+            if self.detail_workers == 1:
+                descriptions = map(self._fetch_description, uuids)
+                for job_uuid, description in zip(uuids, descriptions):
+                    results[job_uuid].description = description
+            else:
+                with ThreadPoolExecutor(max_workers=self.detail_workers) as executor:
+                    descriptions = executor.map(self._fetch_description, uuids)
+                    for job_uuid, description in zip(uuids, descriptions):
+                        results[job_uuid].description = description
 
         return list(results.values())

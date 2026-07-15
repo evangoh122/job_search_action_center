@@ -1,8 +1,8 @@
 {
   "data_and_ai_companies": {
-    "version": "3.0",
-    "last_updated": "2026-06-19",
-    "description": "Target companies and keywords for Data/AI VP & leadership roles WITHIN banks. Tuned to Evan Goh's profile (Data Analytics Solutions Lead, AI transformation in financial institutions). SG local + global banks.",
+    "version": "3.1",
+    "last_updated": "2026-07-12",
+    "description": "Target companies and keywords for Data/AI VP & leadership roles across finance, large technology companies, cloud/platform providers, and AI/data infrastructure companies. Tuned to Evan Goh's profile (Data Analytics Solutions Lead, AI transformation in financial institutions).",
 
     "target_categories": {
       "sg_banks": {
@@ -56,6 +56,107 @@
         ],
         "auto_apply_threshold": 90,
         "description": "Asset managers / sovereign funds with large data teams"
+      },
+      "large_tech": {
+        "priority": 1,
+        "companies": [
+          {"name": "Google", "match_threshold": 82},
+          {"name": "Alphabet", "match_threshold": 82},
+          {"name": "Microsoft", "match_threshold": 82},
+          {"name": "Amazon", "match_threshold": 82},
+          {"name": "AWS", "match_threshold": 82},
+          {"name": "Meta", "match_threshold": 82},
+          {"name": "Apple", "match_threshold": 82},
+          {"name": "NVIDIA", "match_threshold": 82},
+          {"name": "OpenAI", "match_threshold": 82},
+          {"name": "ByteDance", "match_threshold": 82},
+          {"name": "TikTok", "match_threshold": 82},
+          {"name": "Tencent", "match_threshold": 82},
+          {"name": "Alibaba", "match_threshold": 82},
+          {"name": "Alibaba Cloud", "match_threshold": 82},
+          {"name": "Grab", "match_threshold": 82},
+          {"name": "Sea", "match_threshold": 82},
+          {"name": "Shopee", "match_threshold": 82}
+        ],
+        "auto_apply_threshold": 90,
+        "description": "Large technology companies, cloud providers, and APAC consumer-tech platforms with major data, AI, cloud, and platform organizations"
+      },
+      "ai_labs_and_model_companies": {
+        "priority": 1,
+        "companies": [
+          {"name": "Anthropic", "match_threshold": 82},
+          {"name": "Cohere", "match_threshold": 82},
+          {"name": "Hugging Face", "match_threshold": 82},
+          {"name": "Perplexity", "match_threshold": 82},
+          {"name": "Mistral AI", "match_threshold": 82},
+          {"name": "xAI", "match_threshold": 82},
+          {"name": "DeepMind", "match_threshold": 82}
+        ],
+        "auto_apply_threshold": 90,
+        "description": "AI labs and model companies for applied AI, platform, solutions, and enterprise adoption roles"
+      },
+      "enterprise_software": {
+        "priority": 2,
+        "companies": [
+          {"name": "Salesforce", "match_threshold": 80},
+          {"name": "Oracle", "match_threshold": 80},
+          {"name": "SAP", "match_threshold": 80},
+          {"name": "IBM", "match_threshold": 80},
+          {"name": "ServiceNow", "match_threshold": 80},
+          {"name": "Adobe", "match_threshold": 80},
+          {"name": "Cisco", "match_threshold": 80},
+          {"name": "Atlassian", "match_threshold": 80},
+          {"name": "Workday", "match_threshold": 80},
+          {"name": "GitHub", "match_threshold": 80},
+          {"name": "GitLab", "match_threshold": 80},
+          {"name": "Cloudflare", "match_threshold": 80},
+          {"name": "HubSpot", "match_threshold": 80},
+          {"name": "Zendesk", "match_threshold": 80},
+          {"name": "Okta", "match_threshold": 80},
+          {"name": "Twilio", "match_threshold": 80}
+        ],
+        "auto_apply_threshold": 88,
+        "description": "Enterprise software companies with AI, analytics, workflow, and platform roles"
+      },
+      "data_ai_platforms": {
+        "priority": 2,
+        "companies": [
+          {"name": "Databricks", "match_threshold": 82},
+          {"name": "Snowflake", "match_threshold": 82},
+          {"name": "Palantir", "match_threshold": 82},
+          {"name": "MongoDB", "match_threshold": 80},
+          {"name": "Confluent", "match_threshold": 80},
+          {"name": "Elastic", "match_threshold": 80},
+          {"name": "Dataiku", "match_threshold": 80},
+          {"name": "SAS", "match_threshold": 80},
+          {"name": "Fivetran", "match_threshold": 80},
+          {"name": "dbt Labs", "match_threshold": 80},
+          {"name": "Astronomer", "match_threshold": 80},
+          {"name": "Alteryx", "match_threshold": 80},
+          {"name": "ThoughtSpot", "match_threshold": 80},
+          {"name": "Tableau", "match_threshold": 80}
+        ],
+        "auto_apply_threshold": 88,
+        "description": "Data, AI, analytics, and infrastructure platform companies"
+      },
+      "fintech_and_payments": {
+        "priority": 2,
+        "companies": [
+          {"name": "Stripe", "match_threshold": 82},
+          {"name": "Wise", "match_threshold": 82},
+          {"name": "Airwallex", "match_threshold": 82},
+          {"name": "Revolut", "match_threshold": 82},
+          {"name": "PayPal", "match_threshold": 80},
+          {"name": "Block", "match_threshold": 80},
+          {"name": "Square", "match_threshold": 80},
+          {"name": "Adyen", "match_threshold": 80},
+          {"name": "Checkout.com", "match_threshold": 80},
+          {"name": "Ant Group", "match_threshold": 80},
+          {"name": "Coinbase", "match_threshold": 80},
+          {"name": "Crypto.com", "match_threshold": 80}
+        ],
+        "auto_apply_threshold": 88,
+        "description": "Fintech, payments, and digital-asset platforms where finance-domain analytics and AI experience transfer well"
       }
     },
 
@@ -96,7 +197,11 @@
       "solution architecture",
       "data governance",
       "advanced analytics",
-      "predictive analytics"
+      "predictive analytics",
+      "cloud platform",
+      "platform engineering",
+      "product analytics",
+      "ai platform"
     ],
     "secondary_skills": [
       "python",
@@ -123,7 +228,16 @@
       "transaction banking",
       "portfolio",
       "wholesale banking",
-      "corporate banking"
+      "corporate banking",
+      "distributed systems",
+      "kubernetes",
+      "microservices",
+      "api",
+      "saas",
+      "product management",
+      "customer engineering",
+      "pre-sales",
+      "solution consulting"
     ],
     "role_titles": [
       "vice president",
@@ -143,7 +257,15 @@
       "data analytics manager",
       "chief data officer",
       "lead data scientist",
-      "principal data scientist"
+      "principal data scientist",
+      "solutions architect",
+      "solution architect",
+      "customer engineer",
+      "principal architect",
+      "ai architect",
+      "cloud architect",
+      "platform lead",
+      "product lead"
     ],
     "seniority_titles": {
       "vp": ["vice president", "vp", "senior vice president", "svp", "evp"],

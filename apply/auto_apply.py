@@ -1,49 +1,99 @@
-"""Tier A gated auto-apply. Submits to REAL employers — `dry_run` defaults True; a live submit
-only happens when dry_run=False AND routing already gated on score>=92 + simple ATS + allowlist.
+"""Approval-gated application orchestration.
+
+Dry-run is the default. Live mode additionally requires the vacancy's id or dedupe key in
+an approval set and a browser submitter. No applicant-side code calls employer-owned ATS APIs.
 """
 from __future__ import annotations
 
+import json
 import logging
-from collections.abc import Callable
+from collections.abc import Callable, Collection
+from pathlib import Path
 
-import httpx
-
-from apply.ats import ADAPTERS
-from models import Applicant, Job
+from apply.ats import ADAPTERS, ApplicationPlan
+from apply.resume_models import ResumeAchievement
+from apply.tailor import tailor
+from models import Applicant, ApplicationDraft, Job
 
 logger = logging.getLogger(__name__)
 
-HttpFn = Callable[[str, str, dict | None], dict]
+Submitter = Callable[[Job, Applicant, ApplicationPlan], str]
+DraftSink = Callable[[ApplicationDraft], str]
+
+
+def load_approval_keys(path: str | Path | None) -> set[str]:
+    if not path:
+        return set()
+    approval_path = Path(path)
+    if not approval_path.exists():
+        return set()
+    data = json.loads(approval_path.read_text(encoding="utf-8"))
+    values = data.get("approved", []) if isinstance(data, dict) else data
+    return {str(value) for value in values}
 
 
 class AutoApplier:
-    def __init__(self, applicant: Applicant, dry_run: bool = True, http: HttpFn | None = None):
+    def __init__(
+        self,
+        applicant: Applicant,
+        dry_run: bool = True,
+        submitter: Submitter | None = None,
+        approved_job_keys: Collection[str] = (),
+        base_summary: str = "",
+        draft_sink: DraftSink | None = None,
+        achievements: Collection[ResumeAchievement] = (),
+    ) -> None:
         self.applicant = applicant
         self.dry_run = dry_run
-        self.http = http or self._default_http
+        self.submitter = submitter
+        self.approved_job_keys = set(approved_job_keys)
+        self.base_summary = base_summary
+        self.draft_sink = draft_sink
+        self.achievements = list(achievements)
+        self.last_plan: ApplicationPlan | None = None
+        self.last_draft = None
 
-    def _default_http(self, method: str, url: str, body: dict | None) -> dict:
-        r = httpx.request(method, url, json=body, timeout=30)
-        r.raise_for_status()
-        return r.json()
+    def is_approved(self, job: Job) -> bool:
+        return job.id in self.approved_job_keys or job.dedupe_key in self.approved_job_keys
+
+    def _missing_profile_fields(self) -> list[str]:
+        missing = [name for name in ("name", "email", "phone") if not getattr(self.applicant, name)]
+        if not (self.applicant.resume_path or self.applicant.resume_url):
+            missing.append("resume_path_or_url")
+        return missing
 
     def apply(self, job: Job) -> str:
-        """Returns 'unsupported' | 'dry_run' | 'submitted' | 'error'."""
-        builder = ADAPTERS.get((job.ats_type or "").lower())
+        """Return unsupported/dry_run/incomplete/approval_required/review_required/submitted/error."""
+        builder = ADAPTERS.get((job.ats_type or "").casefold())
         if builder is None:
-            logger.info("No ATS adapter for %s (%s)", job.ats_type, job.title)
+            logger.info("No hosted-form adapter for %s (%s)", job.ats_type, job.title)
             return "unsupported"
-        url, payload = builder(job, self.applicant)
+        self.last_plan = builder(job, self.applicant)
+        self.last_draft = tailor(
+            job,
+            self.base_summary,
+            self.applicant.name,
+            achievements=self.achievements,
+        )
+        self.last_plan.fields["cover_letter"] = self.last_draft.cover_letter
+        if self.draft_sink is not None:
+            self.draft_sink(self.last_draft)
+        missing = self._missing_profile_fields()
+        if missing:
+            logger.warning("Application profile incomplete for %s: %s", job.title, ", ".join(missing))
+            return "incomplete"
         if self.dry_run:
-            logger.info("[DRY_RUN] would auto-apply to %s at %s", job.title, url)
+            logger.info("[DRY_RUN] prepared application for %s at %s", job.title, self.last_plan.form_url)
             return "dry_run"
-        if not self.applicant.email:
-            logger.warning("No applicant email — refusing live auto-apply for %s", job.title)
-            return "error"
+        if not self.is_approved(job):
+            logger.info("Per-job approval required for %s", job.title)
+            return "approval_required"
+        if self.submitter is None:
+            logger.info("Browser submitter not configured for approved job %s", job.title)
+            return "review_required"
         try:
-            self.http("POST", url, payload)
-            logger.info("Auto-applied to %s at %s", job.title, url)
-            return "submitted"
+            result = self.submitter(job, self.applicant, self.last_plan)
+            return result if result in {"submitted", "review_required", "captcha_required"} else "error"
         except Exception:
-            logger.warning("Auto-apply failed for %s", job.title, exc_info=True)
+            logger.warning("Browser application failed for %s", job.title, exc_info=True)
             return "error"

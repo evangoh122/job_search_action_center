@@ -1,0 +1,120 @@
+name: Approved application
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Preview is safe; live requires the protected environment and self-hosted runner
+        required: true
+        type: choice
+        options:
+          - preview
+          - live
+        default: preview
+      job_key:
+        description: Exact job dedupe key from `python -m application_cli eligible`
+        required: true
+        type: string
+      confirmation:
+        description: Enter APPLY for live mode
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: approved-job-application
+  cancel-in-progress: false
+
+jobs:
+  preview:
+    if: inputs.mode == 'preview'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install and test
+        run: |
+          python -m pip install -e ".[dev]"
+          python -m pytest -q
+
+      - name: Register approval in the ephemeral preview workspace
+        run: python -m application_cli approve "${{ inputs.job_key }}"
+
+      - name: Run application pipeline in forced dry-run mode
+        env:
+          AUTO_APPLY_LIVE: "false"
+          AUTO_APPLY_BROWSER: "false"
+          AUTO_APPLY_APPROVALS_FILE: data/application_approvals.json
+          APPLICANT_NAME: ${{ secrets.APPLICANT_NAME }}
+          APPLICANT_EMAIL: ${{ secrets.APPLICANT_EMAIL }}
+          APPLICANT_PHONE: ${{ secrets.APPLICANT_PHONE }}
+          APPLICANT_LINKEDIN: ${{ secrets.APPLICANT_LINKEDIN }}
+          APPLICANT_GITHUB: ${{ secrets.APPLICANT_GITHUB }}
+          RESUME_URL: ${{ secrets.RESUME_URL }}
+          RESUME_SUMMARY: ${{ secrets.RESUME_SUMMARY }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
+        run: python -m runner
+
+  live:
+    if: >-
+      inputs.mode == 'live' &&
+      inputs.confirmation == 'APPLY' &&
+      github.ref == 'refs/heads/main'
+    runs-on: [self-hosted, Windows, job-apply]
+    environment: job-applications
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install and verify
+        shell: powershell
+        run: |
+          python -m pip install -e ".[dev,browser]"
+          python -m playwright install chromium
+          python -m pytest -q
+
+      - name: Approve only the dispatched job key
+        shell: powershell
+        run: python -m application_cli approve "${{ inputs.job_key }}"
+
+      - name: Submit approved application through visible browser
+        shell: powershell
+        env:
+          AUTO_APPLY_LIVE: "true"
+          AUTO_APPLY_BROWSER: "true"
+          AUTO_APPLY_HEADLESS: "false"
+          AUTO_APPLY_APPROVALS_FILE: data/application_approvals.json
+          AUTO_APPLY_BROWSER_PROFILE: ${{ vars.AUTO_APPLY_BROWSER_PROFILE }}
+          JOBS_DB_PATH: ${{ vars.JOBS_DB_PATH }}
+          APPLICANT_NAME: ${{ secrets.APPLICANT_NAME }}
+          APPLICANT_EMAIL: ${{ secrets.APPLICANT_EMAIL }}
+          APPLICANT_PHONE: ${{ secrets.APPLICANT_PHONE }}
+          APPLICANT_LOCATION: ${{ secrets.APPLICANT_LOCATION }}
+          APPLICANT_LINKEDIN: ${{ secrets.APPLICANT_LINKEDIN }}
+          APPLICANT_GITHUB: ${{ secrets.APPLICANT_GITHUB }}
+          APPLICANT_CURRENT_COMPANY: ${{ secrets.APPLICANT_CURRENT_COMPANY }}
+          APPLICANT_WORK_AUTHORIZATION: ${{ secrets.APPLICANT_WORK_AUTHORIZATION }}
+          APPLICANT_SPONSORSHIP_REQUIRED: ${{ secrets.APPLICANT_SPONSORSHIP_REQUIRED }}
+          APPLICANT_NOTICE_PERIOD: ${{ secrets.APPLICANT_NOTICE_PERIOD }}
+          APPLICANT_SALARY_EXPECTATION: ${{ secrets.APPLICANT_SALARY_EXPECTATION }}
+          APPLICATION_ANSWERS_JSON: ${{ secrets.APPLICATION_ANSWERS_JSON }}
+          RESUME_PATH: ${{ vars.RESUME_PATH }}
+          RESUME_URL: ${{ secrets.RESUME_URL }}
+          RESUME_SUMMARY: ${{ secrets.RESUME_SUMMARY }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
+        run: python -m application_cli apply "${{ inputs.job_key }}"

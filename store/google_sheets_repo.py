@@ -1,11 +1,12 @@
 """Google Sheets as the visible job board + contact/outreach tracker.
 
-Drop-in replacement for the former Airtable tracker. One spreadsheet, three tabs
+Drop-in replacement for the former Airtable tracker. One spreadsheet, application tabs
 (auto-created with header rows on first use):
 
   Jobs:     DedupeKey, Title, Company, URL, Score, Tier, Status, Source, Posted, Description
   Contacts: Key, Name, Email, Company, Role, Type, LinkedIn, Confidence
   Outreach: Key, Subject, Body, To, Status, Date, Job, Contact
+  Applications: Job, company, application link, resume file, cover letter, status
 
 The three job-application tabs above are coloured green. A fourth tab, "Networking
 Tracker" (orange), holds networking contacts pulled from Gmail:
@@ -30,7 +31,7 @@ from urllib.parse import quote
 
 import httpx
 
-from models import Contact, EmailDraft, Job
+from models import ApplicationDraft, Contact, EmailDraft, Job, LinkedInPostMatch
 
 logger = logging.getLogger(__name__)
 
@@ -38,13 +39,19 @@ HttpFn = Callable[[str, str, dict | None], dict]  # (method, url, json_body) -> 
 _BASE = "https://sheets.googleapis.com/v4/spreadsheets"
 _SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
 
-JOBS_HEADERS = ["DedupeKey", "Title", "Company", "URL", "Score", "Tier",
-                "Status", "Source", "Posted", "Description", "Aging", "Applied"]
+JOBS_HEADERS = ["DedupeKey", "Title", "Company", "URL", "ApplicationLink", "Score", "Tier",
+                "Status", "Source", "Posted", "Description", "Aging", "Applied",
+                "Salary Min", "Salary Max", "Salary Average", "Salary Currency", "Salary Period"]
 CONTACTS_HEADERS = ["Key", "Name", "Email", "Company", "Role", "Type",
                     "LinkedIn", "Confidence"]
 OUTREACH_HEADERS = ["Key", "Subject", "Body", "To", "Status", "Date", "Job", "Contact"]
 NETWORKING_HEADERS = ["Key", "Name", "Email", "Company", "Role", "LinkedIn",
                       "Source", "Last Contacted", "Status", "Notes"]
+APPLICATIONS_HEADERS = ["Key", "Job", "Company", "Title", "Application Link",
+                        "Resume File", "Cover Letter", "Matched Keywords", "Status", "Updated"]
+LINKEDIN_POST_HEADERS = ["Key", "Job", "Company", "Job Title", "Job URL", "Post URL",
+                         "Post Text", "Author", "Author Title", "Author Profile", "Role Type",
+                         "Confidence", "Evidence", "Intent", "Posted", "Status"]
 
 _CONTACT_TYPES = {"recruiter", "hiring_manager"}  # Type column allowed values
 _MAX_CELL = 40000  # Sheets caps a cell at 50k chars; stay well under
@@ -72,6 +79,8 @@ class GoogleSheetsRepository:
         contacts_tab: str = "Contacts",
         outreach_tab: str = "Outreach",
         networking_tab: str = "Networking Tracker",
+        applications_tab: str = "Applications",
+        linkedin_posts_tab: str = "LinkedIn Post Matches",
         http: HttpFn | None = None,
     ) -> None:
         self.spreadsheet_id = spreadsheet_id
@@ -80,6 +89,8 @@ class GoogleSheetsRepository:
         self.contacts_tab = contacts_tab
         self.outreach_tab = outreach_tab
         self.networking_tab = networking_tab
+        self.applications_tab = applications_tab
+        self.linkedin_posts_tab = linkedin_posts_tab
         self.http = http or self._default_http
         # Tab -> header row, in column order. Used for bootstrapping and row width.
         self._headers_by_tab = {
@@ -87,6 +98,8 @@ class GoogleSheetsRepository:
             contacts_tab: CONTACTS_HEADERS,
             outreach_tab: OUTREACH_HEADERS,
             networking_tab: NETWORKING_HEADERS,
+            applications_tab: APPLICATIONS_HEADERS,
+            linkedin_posts_tab: LINKEDIN_POST_HEADERS,
         }
         # Job-application tabs green; networking tab orange.
         self._tab_colors = {
@@ -94,10 +107,13 @@ class GoogleSheetsRepository:
             contacts_tab: _GREEN,
             outreach_tab: _GREEN,
             networking_tab: _ORANGE,
+            applications_tab: _GREEN,
+            linkedin_posts_tab: _ORANGE,
         }
         self._ready = False  # tabs + headers ensured?
         self._sheet_ids: dict[str, int] = {}  # tab title -> sheetId (filled by _ensure_ready)
         self.last_was_new = False  # was the most recent upsert a new append?
+        self._last_upsert_row: int | None = None
 
     # ── auth constructors ────────────────────────────────────────────────────
     @classmethod
@@ -180,6 +196,7 @@ class GoogleSheetsRepository:
         col_a = self._values_get(f"'{tab}'!A2:A")
         match = next((i + 2 for i, cell in enumerate(col_a) if cell and cell[0] == key), None)
         self.last_was_new = match is None
+        self._last_upsert_row = match if match is not None else len(col_a) + 2
         if match is not None:
             last = _col_letter(len(row))
             self._values_update(f"'{tab}'!A{match}:{last}{match}", row)
@@ -194,21 +211,32 @@ class GoogleSheetsRepository:
             job.title,
             job.company_canonical,
             job.url,
+            getattr(job, "application_link", "") or job.url,
             job.score if job.score is not None else "",
             job.tier if job.tier in ("A", "B") else "",
             job.status,
             job.source,
             job.posted_at.date().isoformat() if job.posted_at is not None else "",
             (job.description or "")[:_MAX_CELL],
-            # Aging (column K) is a live formula managed by refresh_aging_formulas(),
+            # Aging is a live formula managed by refresh_aging_formulas(),
             # not written here — a RAW upsert would overwrite the formula with text.
         ]
 
     def upsert_job(self, job: Job) -> str:
-        return self._upsert_row(self.jobs_tab, job.dedupe_key, self._job_row(job))
+        key = self._upsert_row(self.jobs_tab, job.dedupe_key, self._job_row(job))
+        row = self._last_upsert_row
+        if row is not None:
+            self._values_update(f"'{self.jobs_tab}'!N{row}:R{row}", [
+                job.salary_min if job.salary_min is not None else "",
+                job.salary_max if job.salary_max is not None else "",
+                job.salary_average if job.salary_average is not None else "",
+                job.salary_currency,
+                job.salary_period,
+            ])
+        return key
 
     def refresh_aging_formulas(self) -> int:
-        """(Re)write the Aging column (K) as live formulas: days since Posted (col I),
+        """(Re)write the Aging column as live formulas: days since Posted,
         recomputed by the sheet itself via TODAY(). Call after a run / to backfill.
         Returns the number of data rows written."""
         self._ensure_ready()
@@ -216,16 +244,16 @@ class GoogleSheetsRepository:
         if n == 0:
             return 0
         # One formula per data row (rows 2..n+1); blank Posted -> blank Aging.
-        formulas = [[f'=IF($I{r}="","",TODAY()-DATEVALUE($I{r}))'] for r in range(2, n + 2)]
-        a1 = quote(f"'{self.jobs_tab}'!K2:K{n + 1}")
+        formulas = [[f'=IF($J{r}="","",TODAY()-DATEVALUE($J{r}))'] for r in range(2, n + 2)]
+        a1 = quote(f"'{self.jobs_tab}'!L2:L{n + 1}")
         self.http("PUT", self._url(f"/values/{a1}?valueInputOption=USER_ENTERED"),
                   {"values": formulas})
         # Show Aging as a whole number (avoid the sheet's inherited 2-decimal date format).
         sid = self._sheet_ids.get(self.jobs_tab)
         if sid is not None:
             self.http("POST", self._url(":batchUpdate"), {"requests": [{"repeatCell": {
-                "range": {"sheetId": sid, "startRowIndex": 1, "startColumnIndex": 10,
-                          "endColumnIndex": 11},
+                "range": {"sheetId": sid, "startRowIndex": 1, "startColumnIndex": 11,
+                          "endColumnIndex": 12},
                 "cell": {"userEnteredFormat": {"numberFormat": {"type": "NUMBER", "pattern": "0"}}},
                 "fields": "userEnteredFormat.numberFormat",
             }}]})
@@ -248,15 +276,15 @@ class GoogleSheetsRepository:
                 },
                 "sortSpecs": [
                     {
-                        "dimensionIndex": 11,  # Applied column (L)
+                        "dimensionIndex": 12,  # Applied column (M)
                         "sortOrder": "ASCENDING"
                     },
                     {
-                        "dimensionIndex": 4,  # Score column
+                        "dimensionIndex": 5,  # Score column
                         "sortOrder": "DESCENDING"
                     },
                     {
-                        "dimensionIndex": 10,  # Aging column
+                        "dimensionIndex": 11,  # Aging column
                         "sortOrder": "ASCENDING"
                     }
                 ]
@@ -306,6 +334,29 @@ class GoogleSheetsRepository:
             contact_key or "",
         ]
         return self._upsert_row(self.outreach_tab, key, row)
+
+    def upsert_application(self, draft: ApplicationDraft) -> str:
+        """Write the complete reviewable package, including its mandatory cover letter."""
+        if not draft.cover_letter.strip():
+            raise ValueError("application package requires a cover letter")
+        key = draft.job_id
+        row = [
+            key, draft.job_id, draft.company, draft.title,
+            draft.application_link or draft.url, draft.resume_filename,
+            draft.cover_letter[:_MAX_CELL], ", ".join(draft.matched_keywords),
+            draft.status, datetime.now().isoformat(timespec="seconds"),
+        ]
+        return self._upsert_row(self.applications_tab, key, row)
+
+    def upsert_linkedin_post_match(self, match: LinkedInPostMatch) -> str:
+        row = [
+            match.id, match.job_key, match.company, match.job_title, match.job_url,
+            match.post_url, match.post_text[:_MAX_CELL], match.author_name,
+            match.author_title, match.author_profile_url, match.author_role_type,
+            match.confidence, ", ".join(match.evidence),
+            match.post_intent, match.posted_at.isoformat() if match.posted_at else "", match.status,
+        ]
+        return self._upsert_row(self.linkedin_posts_tab, match.id, row)
 
     # ── Networking Tracker ───────────────────────────────────────────────────
     def upsert_networking(

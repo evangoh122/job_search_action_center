@@ -5,7 +5,8 @@ import sqlite3
 from abc import ABC, abstractmethod
 from pathlib import Path
 
-from models import Contact, Job
+from models import Contact, Job, LinkedInPostMatch
+from matching import job_identity_key, merge_jobs
 
 
 class Repository(ABC):
@@ -17,6 +18,9 @@ class Repository(ABC):
 
     @abstractmethod
     def list_jobs(self) -> list[Job]: ...
+
+    def get_job_by_dedupe_key(self, dedupe_key: str) -> Job | None:
+        return next((j for j in self.list_jobs() if j.dedupe_key == dedupe_key), None)
 
     @abstractmethod
     def upsert_contact(self, c: Contact) -> None: ...
@@ -35,6 +39,7 @@ class SqliteRepository(Repository):
         self.conn = sqlite3.connect(db_path)
         self.conn.row_factory = sqlite3.Row
         self._create_tables()
+        self._migrate_cross_source_keys()
 
     def _create_tables(self) -> None:
         self.conn.executescript(
@@ -54,11 +59,19 @@ class SqliteRepository(Repository):
                 n INTEGER NOT NULL DEFAULT 0,
                 PRIMARY KEY (kind, day)
             );
+            CREATE TABLE IF NOT EXISTS linkedin_post_matches (
+                id TEXT PRIMARY KEY,
+                job_id TEXT NOT NULL,
+                data TEXT NOT NULL
+            );
             """
         )
         self.conn.commit()
 
     def upsert_job(self, job: Job) -> None:
+        existing = self.get_job_by_dedupe_key(job.dedupe_key)
+        if existing is not None and existing.id != job.id:
+            job = merge_jobs(existing, job)
         self.conn.execute(
             """
             INSERT INTO jobs (id, dedupe_key, data)
@@ -70,6 +83,39 @@ class SqliteRepository(Repository):
             (job.id, job.dedupe_key, json.dumps(job.model_dump(mode="json"))),
         )
         self.conn.commit()
+
+    def get_job_by_dedupe_key(self, dedupe_key: str) -> Job | None:
+        row = self.conn.execute(
+            "SELECT data FROM jobs WHERE dedupe_key = ?", (dedupe_key,)
+        ).fetchone()
+        return Job.model_validate(json.loads(row["data"])) if row else None
+
+    def _migrate_cross_source_keys(self) -> None:
+        """Consolidate legacy URL-based keys when an existing DB is opened."""
+        rows = self.conn.execute("SELECT data FROM jobs").fetchall()
+        if not rows:
+            return
+        grouped: dict[str, Job] = {}
+        changed = False
+        for row in rows:
+            job = Job.model_validate(json.loads(row["data"]))
+            key = job_identity_key(job.company_canonical, job.title)
+            changed = changed or key != job.dedupe_key or key in grouped
+            job.dedupe_key = key
+            job.sources = job.sources or [job.source]
+            job.source_urls = job.source_urls or {job.source: job.url}
+            grouped[key] = merge_jobs(grouped[key], job) if key in grouped else job
+        if not changed:
+            return
+        with self.conn:
+            self.conn.execute("DELETE FROM jobs")
+            self.conn.executemany(
+                "INSERT INTO jobs (id, dedupe_key, data) VALUES (?, ?, ?)",
+                [
+                    (job.id, key, json.dumps(job.model_dump(mode="json")))
+                    for key, job in grouped.items()
+                ],
+            )
 
     def get_job(self, job_id: str) -> Job | None:
         row = self.conn.execute(
@@ -91,6 +137,23 @@ class SqliteRepository(Repository):
             (c.id, json.dumps(c.model_dump(mode="json"))),
         )
         self.conn.commit()
+
+    def upsert_linkedin_post_match(self, match: LinkedInPostMatch) -> None:
+        self.conn.execute(
+            """INSERT INTO linkedin_post_matches (id, job_id, data) VALUES (?, ?, ?)
+               ON CONFLICT(id) DO UPDATE SET job_id = excluded.job_id, data = excluded.data""",
+            (match.id, match.job_id, json.dumps(match.model_dump(mode="json"))),
+        )
+        self.conn.commit()
+
+    def list_linkedin_post_matches(self, job_id: str | None = None) -> list[LinkedInPostMatch]:
+        if job_id:
+            rows = self.conn.execute(
+                "SELECT data FROM linkedin_post_matches WHERE job_id = ?", (job_id,)
+            ).fetchall()
+        else:
+            rows = self.conn.execute("SELECT data FROM linkedin_post_matches").fetchall()
+        return [LinkedInPostMatch.model_validate(json.loads(row["data"])) for row in rows]
 
     def incr_action(self, kind: str, day: str) -> int:
         self.conn.execute(

@@ -15,6 +15,7 @@ from datetime import datetime, timedelta
 import httpx
 
 from models import RawJob
+from salary import extract_salary
 from sources.base import JobSource
 
 logger = logging.getLogger(__name__)
@@ -108,6 +109,15 @@ class LinkedInJobSource(JobSource):
             }
             try:
                 items = self._items(self.http_post(run_url, payload))
+            except httpx.HTTPStatusError as exc:
+                if exc.response.status_code in (401, 403):
+                    logger.error(
+                        "LinkedIn/Apify authorization failed (%s); stopping LinkedIn scan.",
+                        exc.response.status_code,
+                    )
+                    break
+                logger.warning("LinkedIn fetch failed for term '%s'", term, exc_info=True)
+                continue
             except Exception:
                 logger.warning("LinkedIn fetch failed for term '%s'", term, exc_info=True)
                 continue
@@ -130,6 +140,7 @@ class LinkedInJobSource(JobSource):
                         continue
 
                     description = (item.get("descriptionText") or item.get("description") or "").strip()
+                    salary = extract_salary(item)
 
                     seen_urls.add(job_url)
                     results.append(RawJob(
@@ -140,6 +151,10 @@ class LinkedInJobSource(JobSource):
                         posted_at=posted_at,
                         ats_type="linkedin",
                         description=description,
+                        salary_min=salary.minimum,
+                        salary_max=salary.maximum,
+                        salary_currency=salary.currency,
+                        salary_period=salary.period,
                     ))
                 except Exception:
                     logger.warning("Skipping malformed LinkedIn item: %s", item, exc_info=True)

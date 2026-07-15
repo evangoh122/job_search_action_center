@@ -3,6 +3,7 @@ from scoring import (
     ats_match,
     company_match,
     final_score,
+    target_priority,
     tfidf_similarity,
     title_on_allowlist,
 )
@@ -107,3 +108,10 @@ def test_company_match_handles_name_suffix():
     assert company_match(_job("VP Data", "CIMB Singapore")) > 0.3
     assert company_match(_job("VP Data", "OCBC Bank")) > 0.3
     assert company_match(_job("VP Data", "Totally Random Co")) == 0.3
+
+
+def test_tech_companies_are_targeted():
+    assert target_priority("ByteDance Singapore") == 1
+    assert target_priority("Anthropic") == 1
+    assert target_priority("Airwallex Singapore") == 2
+    assert target_priority("Cloudflare") == 2

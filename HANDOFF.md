@@ -33,3 +33,23 @@ scoring → routing into **two parallel tracks**:
 ## Live keys (all optional; degrades gracefully) — in `.env`, never committed
 `HUNTER_API_KEY`, `GMAIL_TOKEN`, `HUBSPOT_TOKEN`, `APIFY_TOKEN`, `AUTO_APPLY_LIVE=true`,
 `APPLICANT_NAME/EMAIL/RESUME_URL`.
+
+## Resume / application-package instructions
+- For future coding tasks: prefer MiMo for implementation when callable, DeepSeek for review, then
+  Codex performs final validation. Before merging GitHub work, wait for CodeRabbit PR validation
+  where available.
+- For any new resume achievement or application-package point, interview Evan before finalising it.
+  Capture:
+  - `keyword`: target skill/role signal.
+  - `X`: outcome/result.
+  - `Y`: metric/scale/adoption/money/time saved/users/coverage.
+  - `Z`: method/tools/model/product/workflow/stakeholder action.
+  - role fit: which resume variants should use it.
+  - disclosure constraints: employer/client names and confidential details.
+- Store private resume source material under ignored local paths such as `data/` or `resume/`.
+  Do not commit personal CV files or local achievement banks unless explicitly requested.
+- For every new application package, name the resume file
+  `Evan_Resume{mmddyyyy}_{COMPANY_ABBR}`, e.g. `Evan_Resume07122026_DBS.docx`.
+- Save the application link in the Google Sheet application/job row.
+- Put Evan's GitHub link and resume link in the resume header/contact block alongside email,
+  phone, LinkedIn, and location.

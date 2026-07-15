@@ -1,4 +1,4 @@
-from models import Contact, Job
+from models import Contact, Job, LinkedInPostMatch
 from store.repository import SqliteRepository
 
 
@@ -41,3 +41,15 @@ def test_incr_and_count_actions():
     assert repo.incr_action("apply", "2026-06-19") == 2
     assert repo.count_actions("apply", "2026-06-19") == 2
     assert repo.count_actions("apply", "2026-06-20") == 0  # day-scoped
+
+
+def test_linkedin_post_match_roundtrip():
+    repo = SqliteRepository()
+    match = LinkedInPostMatch(
+        id="j1|p1", job_id="j1", job_key="acme|role", company="Acme",
+        job_title="Role", job_url="https://linkedin.com/jobs/view/1",
+        post_url="https://linkedin.com/posts/p1", post_text="We are hiring",
+        author_name="Jane", confidence=1.0, evidence=["exact_job_url"],
+    )
+    repo.upsert_linkedin_post_match(match)
+    assert repo.list_linkedin_post_matches("j1") == [match]

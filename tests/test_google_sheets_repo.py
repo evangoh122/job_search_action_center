@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from models import Contact, EmailDraft, Job
+from models import ApplicationDraft, Contact, EmailDraft, Job, LinkedInPostMatch
 from store.google_sheets_repo import GoogleSheetsRepository
 
 
@@ -50,9 +50,9 @@ def test_upsert_job_creates_when_absent():
     key = _repo(http).upsert_job(_job())
     assert key == "dbs|head of data|u1"
     row = _appended(calls)
-    # Aging (col K) is a live formula, not written by the row upsert -> 10 columns.
+    # Aging (col L) is a live formula, not written by the row upsert -> 11 columns.
     assert row == ["dbs|head of data|u1", "Head of Data", "DBS", "https://x/1",
-                   88.0, "B", "new", "mycareersfuture", "2026-06-19",
+                   "https://x/1", 88.0, "B", "new", "mycareersfuture", "2026-06-19",
                    "machine learning Databricks"]
 
 
@@ -64,13 +64,13 @@ def test_refresh_aging_writes_live_formulas():
     n = repo.refresh_aging_formulas()
     assert n == 3
     put = [c for c in calls if c[0] == "PUT" and "USER_ENTERED" in c[1]][0]
-    assert "K2%3AK4" in put[1]  # writes K2:K4 (rows 2..4)
+    assert "L2%3AL4" in put[1]  # writes L2:L4 (rows 2..4)
     formulas = [v[0] for v in put[2]["values"]]
-    assert formulas[0] == '=IF($I2="","",TODAY()-DATEVALUE($I2))'
-    assert formulas[2] == '=IF($I4="","",TODAY()-DATEVALUE($I4))'  # row-relative
-    # whole-number format applied to column K
+    assert formulas[0] == '=IF($J2="","",TODAY()-DATEVALUE($J2))'
+    assert formulas[2] == '=IF($J4="","",TODAY()-DATEVALUE($J4))'  # row-relative
+    # whole-number format applied to column L
     fmt = [c for c in calls if c[0] == "POST" and ":batchUpdate" in c[1]][-1]
-    assert fmt[2]["requests"][0]["repeatCell"]["range"]["startColumnIndex"] == 10
+    assert fmt[2]["requests"][0]["repeatCell"]["range"]["startColumnIndex"] == 11
 
 
 def test_upsert_job_updates_when_present():
@@ -78,7 +78,7 @@ def test_upsert_job_updates_when_present():
     key = _repo(http).upsert_job(_job())
     assert key == "dbs|head of data|u1"
     put = [c for c in calls if c[0] == "PUT"][0]
-    assert "A2%3AJ2" in put[1]  # row 2, columns A..J updated (K/Aging is formula-managed)
+    assert "A2%3AK2" in put[1]  # row 2, columns A..K updated (L/Aging is formula-managed)
     assert not any(":append" in c[1] for c in calls)
 
 
@@ -87,7 +87,20 @@ def test_tier_none_blank():
     job.tier = None
     http, calls = _fake([])
     _repo(http).upsert_job(job)
-    assert _appended(calls)[5] == ""  # Tier column blank, not "None"
+    assert _appended(calls)[6] == ""  # Tier column blank, not "None"
+
+
+def test_salary_range_and_average_are_written_after_existing_applied_column():
+    job = _job()
+    job.salary_min = 9000
+    job.salary_max = 13000
+    job.salary_average = 11000
+    job.salary_currency = "SGD"
+    job.salary_period = "MONTH"
+    http, calls = _fake([])
+    _repo(http).upsert_job(job)
+    salary_put = next(c for c in calls if c[0] == "PUT" and "N2%3AR2" in c[1])
+    assert salary_put[2]["values"][0] == [9000, 13000, 11000, "SGD", "MONTH"]
 
 
 # ── Contacts ─────────────────────────────────────────────────────────────────
@@ -165,7 +178,8 @@ def test_ensure_creates_missing_tabs_recolours_and_writes_headers():
     batch = [c for c in calls if c[0] == "POST" and ":batchUpdate" in c[1]][0]
     reqs = batch[2]["requests"]
     added = {r["addSheet"]["properties"]["title"] for r in reqs if "addSheet" in r}
-    assert added == {"Contacts", "Outreach", "Networking Tracker"}  # Jobs already exists
+    assert added == {"Contacts", "Outreach", "Networking Tracker", "Applications",
+                     "LinkedIn Post Matches"}
     # Jobs (pre-existing) is recoloured, not re-added.
     recolour = [r for r in reqs if "updateSheetProperties" in r]
     assert recolour[0]["updateSheetProperties"]["properties"]["sheetId"] == 0
@@ -197,6 +211,48 @@ def test_upsert_networking_falls_back_to_name():
     assert _appended(calls)[0] == "No Email Person"
 
 
+def test_upsert_application_writes_cover_letter_section():
+    http, calls = _fake([])
+    draft = ApplicationDraft(
+        job_id="j1", company="DBS", title="Head of Data", url="https://x/1",
+        application_link="https://x/1", resume_filename="Evan_Resume.docx",
+        cover_letter="Dear DBS, tailored evidence.", matched_keywords=["data governance"],
+    )
+    assert _repo(http).upsert_application(draft) == "j1"
+    row = _appended(calls)
+    assert row[0:4] == ["j1", "j1", "DBS", "Head of Data"]
+    assert row[6] == "Dear DBS, tailored evidence."
+    assert row[7] == "data governance"
+
+
+def test_upsert_application_rejects_missing_cover_letter():
+    http, _ = _fake([])
+    draft = ApplicationDraft(job_id="j1", company="DBS", title="Role", url="https://x",
+                             cover_letter="")
+    import pytest
+    with pytest.raises(ValueError, match="requires a cover letter"):
+        _repo(http).upsert_application(draft)
+
+
+def test_upsert_linkedin_post_match_writes_evidence_and_review_status():
+    http, calls = _fake([])
+    match = LinkedInPostMatch(
+        id="j1|p1", job_id="j1", job_key="dbs|head of data", company="DBS",
+        job_title="Head of Data", job_url="https://linkedin.com/jobs/view/123456",
+        post_url="https://linkedin.com/posts/p1", post_text="We are hiring",
+        author_name="Jane", author_title="Recruiter at DBS",
+        author_profile_url="https://linkedin.com/in/jane", author_role_type="recruiter",
+        confidence=1.0, evidence=["exact_linkedin_job_id"],
+    )
+    assert _repo(http).upsert_linkedin_post_match(match) == "j1|p1"
+    row = _appended(calls)
+    assert row[5] == "https://linkedin.com/posts/p1"
+    assert row[11] == 1.0
+    assert row[12] == "exact_linkedin_job_id"
+    assert row[13] == "hiring"
+    assert row[15] == "review_required"
+
+
 # ── Backup ────────────────────────────────────────────────────────────────────
 def test_snapshot_to_creates_dated_tabs_and_writes_values():
     calls: list[tuple[str, str, dict | None]] = []
@@ -212,9 +268,10 @@ def test_snapshot_to_creates_dated_tabs_and_writes_values():
     repo = _repo(http)
     written = repo.snapshot_to("backup999", suffix="2026-06-21")
     assert written == ["Jobs 2026-06-21", "Contacts 2026-06-21",
-                       "Outreach 2026-06-21", "Networking Tracker 2026-06-21"]
+                       "Outreach 2026-06-21", "Networking Tracker 2026-06-21",
+                       "Applications 2026-06-21", "LinkedIn Post Matches 2026-06-21"]
     # Each snapshot tab is created in the backup spreadsheet then filled with source values.
     adds = [c for c in calls if c[0] == "POST" and "backup999" in c[1] and ":batchUpdate" in c[1]]
-    assert len(adds) == 4
+    assert len(adds) == 6
     puts = [c for c in calls if c[0] == "PUT" and "backup999" in c[1]]
     assert puts[0][2]["values"][1] == ["k1", "Head of Data"]

@@ -21,6 +21,7 @@ from datetime import datetime, timedelta
 import httpx
 
 from models import RawJob
+from salary import extract_salary
 from sources.base import JobSource
 
 logger = logging.getLogger(__name__)
@@ -132,6 +133,7 @@ class GreenhouseSource(JobSource):
                     posted_at = self._parse_dt(job.get("updated_at"))
                     if posted_at is not None and posted_at < cutoff:
                         continue
+                    salary = extract_salary(job)
                     results.append(RawJob(
                         source="greenhouse",
                         company=company,
@@ -140,6 +142,10 @@ class GreenhouseSource(JobSource):
                         posted_at=posted_at,
                         ats_type="greenhouse",
                         description=_strip_html(job.get("content", "")),
+                        salary_min=salary.minimum,
+                        salary_max=salary.maximum,
+                        salary_currency=salary.currency,
+                        salary_period=salary.period,
                     ))
                 except (KeyError, TypeError):
                     logger.warning("Skipping malformed Greenhouse entry from %s", board, exc_info=True)

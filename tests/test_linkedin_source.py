@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 
+import httpx
+
 from models import RawJob
 from sources.linkedin import LinkedInJobSource
 
@@ -114,3 +116,18 @@ def test_tolerates_apify_failure():
     src = LinkedInJobSource("tok", ["head of data"], http_post=bad_post)
     jobs = src.fetch()
     assert jobs == []
+
+
+def test_authorization_failure_stops_after_first_term():
+    calls = 0
+
+    def forbidden(url: str, body: dict) -> list:
+        nonlocal calls
+        calls += 1
+        request = httpx.Request("POST", "https://api.apify.test/run")
+        response = httpx.Response(403, request=request)
+        raise httpx.HTTPStatusError("forbidden", request=request, response=response)
+
+    src = LinkedInJobSource("bad", ["one", "two"], http_post=forbidden)
+    assert src.fetch() == []
+    assert calls == 1
