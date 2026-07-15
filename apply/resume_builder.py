@@ -17,6 +17,7 @@ _SPACE = re.compile(r"\s+")
 
 
 def _clean(value: str) -> str:
+    """Clean."""
     return _SPACE.sub(" ", value.strip())
 
 
@@ -36,6 +37,7 @@ def build_contact_header(applicant: Applicant, location: str = "Singapore") -> s
 
 
 def _contains_phrase(text: str, phrase: str) -> bool:
+    """Contains phrase."""
     return bool(re.search(rf"(?<!\w){re.escape(phrase)}(?!\w)", text, re.IGNORECASE))
 
 
@@ -66,6 +68,7 @@ _DOMAIN_TOKENS = {
 
 
 def _phrase_hits(text: str, phrases: Iterable[str]) -> list[str]:
+    """Phrase hits."""
     return [phrase for phrase in phrases if _contains_phrase(text, phrase)]
 
 
@@ -80,6 +83,7 @@ def classify_role(job: Job) -> tuple[str, str]:
 
 
 def _fit_brief(job: Job, keywords: list[str]) -> FitBrief:
+    """Fit brief."""
     primary, secondary = classify_role(job)
     outcomes = [f"Deliver {keyword} outcomes" for keyword in keywords[:3]]
     if not outcomes:
@@ -92,6 +96,7 @@ def _fit_brief(job: Job, keywords: list[str]) -> FitBrief:
 
 
 def _achievement_keywords_for_job(job: Job, achievements: Iterable[ResumeAchievement]) -> list[str]:
+    """Achievement keywords for job."""
     text = f"{job.title} {job.description}".lower()
     keywords: list[str] = []
     for achievement in achievements:
@@ -186,6 +191,7 @@ def _achievement_score(
 
 
 def _format_keyword_xyz(keyword: str, achievement: ResumeAchievement) -> str:
+    """Format keyword xyz."""
     key = _clean(keyword or achievement.keyword).lower()
     for term, display in {
         "ai": "AI",

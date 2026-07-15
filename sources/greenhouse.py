@@ -68,16 +68,19 @@ _DEFAULT_TITLE_KEYWORDS = [
 
 
 def _strip_html(text: str) -> str:
+    """Strip html."""
     return re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", html.unescape(text or ""))).strip()
 
 
 def _default_http_get(url: str) -> dict:
+    """Default http get."""
     resp = httpx.get(url, timeout=30)
     resp.raise_for_status()
     return resp.json()
 
 
 class GreenhouseSource(JobSource):
+    """Represent greenhouse source."""
     def __init__(
         self,
         boards: dict[str, str] | None = None,
@@ -86,6 +89,7 @@ class GreenhouseSource(JobSource):
         max_age_days: int = 7,
         http_get: Callable[[str], dict] | None = None,
     ) -> None:
+        """Initialize the instance."""
         self.boards = boards if boards is not None else DEFAULT_FINTECH_BOARDS
         self.title_keywords = [k.lower() for k in (title_keywords or _DEFAULT_TITLE_KEYWORDS)]
         self.location_contains = location_contains.lower() if location_contains else None
@@ -93,10 +97,12 @@ class GreenhouseSource(JobSource):
         self.http_get = http_get if http_get is not None else _default_http_get
 
     def _matches_title(self, title: str) -> bool:
+        """Matches title."""
         t = title.lower()
         return any(k in t for k in self.title_keywords)
 
     def _matches_location(self, location: str) -> bool:
+        """Matches location."""
         return self.location_contains is None or self.location_contains in (location or "").lower()
 
     @staticmethod
@@ -112,6 +118,7 @@ class GreenhouseSource(JobSource):
         return dt.astimezone().replace(tzinfo=None) if dt.tzinfo else dt
 
     def fetch(self) -> list[RawJob]:
+        """Fetch."""
         results: list[RawJob] = []
         cutoff = datetime.now() - timedelta(days=self.max_age_days)
 

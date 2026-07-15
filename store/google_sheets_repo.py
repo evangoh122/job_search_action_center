@@ -71,6 +71,7 @@ def _col_letter(n: int) -> str:
 
 
 class GoogleSheetsRepository:
+    """Represent google sheets repository."""
     def __init__(
         self,
         spreadsheet_id: str,
@@ -83,6 +84,7 @@ class GoogleSheetsRepository:
         linkedin_posts_tab: str = "LinkedIn Post Matches",
         http: HttpFn | None = None,
     ) -> None:
+        """Initialize the instance."""
         self.spreadsheet_id = spreadsheet_id
         self.token = token
         self.jobs_tab = jobs_tab
@@ -118,6 +120,7 @@ class GoogleSheetsRepository:
     # ── auth constructors ────────────────────────────────────────────────────
     @classmethod
     def from_service_account_file(cls, path: str, spreadsheet_id: str, **kw) -> "GoogleSheetsRepository":
+        """Build an instance from service account file."""
         from google.auth.transport.requests import Request
         from google.oauth2 import service_account
 
@@ -127,6 +130,7 @@ class GoogleSheetsRepository:
 
     @classmethod
     def from_service_account_info(cls, info: dict, spreadsheet_id: str, **kw) -> "GoogleSheetsRepository":
+        """Build an instance from service account info."""
         from google.auth.transport.requests import Request
         from google.oauth2 import service_account
 
@@ -135,6 +139,7 @@ class GoogleSheetsRepository:
         return cls(spreadsheet_id, token=creds.token, **kw)
 
     def _default_http(self, method: str, url: str, body: dict | None) -> dict:
+        """Default http."""
         resp = httpx.request(
             method, url,
             headers={"Authorization": f"Bearer {self.token}", "Content-Type": "application/json"},
@@ -145,15 +150,19 @@ class GoogleSheetsRepository:
 
     # ── low-level Sheets helpers ─────────────────────────────────────────────
     def _url(self, suffix: str = "") -> str:
+        """Url."""
         return f"{_BASE}/{self.spreadsheet_id}{suffix}"
 
     def _values_get(self, a1: str) -> list[list]:
+        """Values get."""
         return self.http("GET", self._url(f"/values/{quote(a1)}"), None).get("values", [])
 
     def _values_update(self, a1: str, row: list) -> None:
+        """Values update."""
         self.http("PUT", self._url(f"/values/{quote(a1)}?valueInputOption=RAW"), {"values": [row]})
 
     def _values_append(self, tab: str, row: list) -> None:
+        """Values append."""
         a1 = quote(f"'{tab}'!A1")
         url = self._url(f"/values/{a1}:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS")
         self.http("POST", url, {"values": [row]})
@@ -206,6 +215,7 @@ class GoogleSheetsRepository:
 
     # ── Jobs ─────────────────────────────────────────────────────────────────
     def _job_row(self, job: Job) -> list:
+        """Job row."""
         return [
             job.dedupe_key,
             job.title,
@@ -223,6 +233,7 @@ class GoogleSheetsRepository:
         ]
 
     def upsert_job(self, job: Job) -> str:
+        """Upsert job."""
         key = self._upsert_row(self.jobs_tab, job.dedupe_key, self._job_row(job))
         row = self._last_upsert_row
         if row is not None:
@@ -296,9 +307,11 @@ class GoogleSheetsRepository:
     @staticmethod
     def _contact_key(c: Contact) -> str:
         # Strongest identifier available: email > linkedin > name.
+        """Contact key."""
         return c.email or c.linkedin_url or c.name
 
     def _contact_row(self, c: Contact, key: str) -> list:
+        """Contact row."""
         return [
             key,
             c.name,
@@ -311,6 +324,7 @@ class GoogleSheetsRepository:
         ]
 
     def upsert_contact(self, c: Contact) -> str:
+        """Upsert contact."""
         key = self._contact_key(c)
         return self._upsert_row(self.contacts_tab, key, self._contact_row(c, key))
 
@@ -349,6 +363,7 @@ class GoogleSheetsRepository:
         return self._upsert_row(self.applications_tab, key, row)
 
     def upsert_linkedin_post_match(self, match: LinkedInPostMatch) -> str:
+        """Upsert linkedin post match."""
         row = [
             match.id, match.job_key, match.company, match.job_title, match.job_url,
             match.post_url, match.post_text[:_MAX_CELL], match.author_name,
@@ -383,6 +398,7 @@ class GoogleSheetsRepository:
         return self._values_get(f"'{tab}'!A1:ZZ")
 
     def _titles(self, spreadsheet_id: str) -> set[str]:
+        """Titles."""
         meta = self.http("GET", f"{_BASE}/{spreadsheet_id}", None)
         return {s["properties"]["title"] for s in meta.get("sheets", [])}
 

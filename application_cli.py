@@ -11,6 +11,7 @@ from store.repository import SqliteRepository
 
 
 def _write_approvals(path: Path, approvals: set[str]) -> None:
+    """Write approvals."""
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
         json.dumps({"approved": sorted(approvals)}, indent=2) + "\n",
@@ -19,6 +20,7 @@ def _write_approvals(path: Path, approvals: set[str]) -> None:
 
 
 def _parser() -> argparse.ArgumentParser:
+    """Parser."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--db", default=os.environ.get("JOBS_DB_PATH") or "data/jobs.sqlite")
     parser.add_argument(
@@ -38,6 +40,7 @@ def _parser() -> argparse.ArgumentParser:
 
 
 def main() -> None:
+    """Run the command-line entry point."""
     args = _parser().parse_args()
     path = Path(args.approvals)
     approvals = load_approval_keys(path)

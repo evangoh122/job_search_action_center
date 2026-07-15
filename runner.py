@@ -105,6 +105,7 @@ def sources(apify_token: str = "", include_greenhouse: bool = True) -> list[RawJ
 
 
 def normalize(raw: RawJob) -> Job:
+    """Normalize."""
     company = raw.company.strip()
     title = raw.title.strip()
     url = raw.url.strip()
@@ -131,6 +132,7 @@ def normalize(raw: RawJob) -> Job:
 
 
 def _within_24h(raw: RawJob) -> bool:
+    """Within 24h."""
     return raw.posted_at is not None and raw.posted_at >= datetime.now() - timedelta(days=1)
 
 
@@ -191,6 +193,7 @@ def _run_apply_a(job, repo, auto_applier, day) -> str:
 
 
 def _track_application_package(draft, tracker) -> None:
+    """Track application package."""
     if tracker is None:
         return
     try:
@@ -238,6 +241,7 @@ def run(
     apify_token: str = "",
     achievements: list[ResumeAchievement] | None = None,
 ) -> dict[str, int]:
+    """Run."""
     repo = repo or SqliteRepository()
     raws = jobs if jobs is not None else sources(apify_token)
     day = datetime.now().date().isoformat()
@@ -533,6 +537,7 @@ def _build_auto_applier_from_env(achievements: list[ResumeAchievement] | None = 
 
 
 def main() -> None:
+    """Run the command-line entry point."""
     logging.basicConfig(level=logging.INFO)
     import os
 

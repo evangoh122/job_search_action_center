@@ -23,6 +23,7 @@ _COMPANY_SUFFIXES = {
 
 
 def _words(value: str) -> list[str]:
+    """Words."""
     value = unicodedata.normalize("NFKC", value or "").casefold()
     value = value.replace("&", " and ")
     value = re.sub(r"\bsenior[\s-]+vice[\s-]+president\b", "svp", value)
@@ -32,6 +33,7 @@ def _words(value: str) -> list[str]:
 
 
 def normalize_company(value: str) -> str:
+    """Normalize company."""
     words = _words(value)
     while words and words[-1] in _COMPANY_SUFFIXES:
         words.pop()
@@ -39,6 +41,7 @@ def normalize_company(value: str) -> str:
 
 
 def normalize_title(value: str) -> str:
+    """Normalize title."""
     return " ".join(_words(value))
 
 
@@ -111,6 +114,7 @@ def find_duplicate_job(incoming: Job, jobs: list[Job]) -> Job | None:
 
 @dataclass(frozen=True)
 class DescriptionMatch:
+    """Represent description match."""
     left: Job
     right: Job
     description_similarity: float
@@ -121,6 +125,7 @@ class DescriptionMatch:
 
 
 def _token_similarity(left: str, right: str) -> float:
+    """Token similarity."""
     a, b = set(_words(left)), set(_words(right))
     return len(a & b) / len(a | b) if a | b else 0.0
 
@@ -138,6 +143,7 @@ def _description_core(value: str) -> str:
 
 
 def _word_ngrams(value: str, size: int = 4) -> set[tuple[str, ...]]:
+    """Word ngrams."""
     words = _words(value)
     return {tuple(words[i:i + size]) for i in range(len(words) - size + 1)}
 

@@ -8,6 +8,7 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class SalaryRange:
+    """Represent salary range."""
     minimum: float | None = None
     maximum: float | None = None
     currency: str = ""
@@ -15,12 +16,14 @@ class SalaryRange:
 
     @property
     def average(self) -> float | None:
+        """Average."""
         if self.minimum is None or self.maximum is None:
             return None
         return (self.minimum + self.maximum) / 2
 
 
 def _number(value: object) -> float | None:
+    """Number."""
     if isinstance(value, (int, float)) and not isinstance(value, bool):
         return float(value)
     if not isinstance(value, str):
@@ -36,12 +39,14 @@ def _number(value: object) -> float | None:
 
 
 def _text(value: object) -> str:
+    """Text."""
     if isinstance(value, Mapping):
         return str(value.get("id") or value.get("name") or value.get("value") or "")
     return str(value or "")
 
 
 def _period(value: object) -> str:
+    """Period."""
     text = _text(value).strip().casefold()
     if "year" in text or "annual" in text:
         return "YEAR"

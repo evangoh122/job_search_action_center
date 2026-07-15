@@ -10,6 +10,7 @@ from matching import job_identity_key, merge_jobs
 
 
 class Repository(ABC):
+    """Represent repository."""
     @abstractmethod
     def upsert_job(self, job: Job) -> None: ...
 
@@ -20,6 +21,7 @@ class Repository(ABC):
     def list_jobs(self) -> list[Job]: ...
 
     def get_job_by_dedupe_key(self, dedupe_key: str) -> Job | None:
+        """Get job by dedupe key."""
         return next((j for j in self.list_jobs() if j.dedupe_key == dedupe_key), None)
 
     @abstractmethod
@@ -33,7 +35,9 @@ class Repository(ABC):
 
 
 class SqliteRepository(Repository):
+    """Represent sqlite repository."""
     def __init__(self, db_path: str = ":memory:"):
+        """Initialize the instance."""
         if db_path != ":memory:":
             Path(db_path).parent.mkdir(parents=True, exist_ok=True)
         self.conn = sqlite3.connect(db_path)
@@ -42,6 +46,7 @@ class SqliteRepository(Repository):
         self._migrate_cross_source_keys()
 
     def _create_tables(self) -> None:
+        """Create tables."""
         self.conn.executescript(
             """
             CREATE TABLE IF NOT EXISTS jobs (
@@ -69,6 +74,7 @@ class SqliteRepository(Repository):
         self.conn.commit()
 
     def upsert_job(self, job: Job) -> None:
+        """Upsert job."""
         existing = self.get_job_by_dedupe_key(job.dedupe_key)
         if existing is not None and existing.id != job.id:
             job = merge_jobs(existing, job)
@@ -85,6 +91,7 @@ class SqliteRepository(Repository):
         self.conn.commit()
 
     def get_job_by_dedupe_key(self, dedupe_key: str) -> Job | None:
+        """Get job by dedupe key."""
         row = self.conn.execute(
             "SELECT data FROM jobs WHERE dedupe_key = ?", (dedupe_key,)
         ).fetchone()
@@ -118,16 +125,19 @@ class SqliteRepository(Repository):
             )
 
     def get_job(self, job_id: str) -> Job | None:
+        """Get job."""
         row = self.conn.execute(
             "SELECT data FROM jobs WHERE id = ?", (job_id,)
         ).fetchone()
         return Job.model_validate(json.loads(row["data"])) if row else None
 
     def list_jobs(self) -> list[Job]:
+        """List jobs."""
         rows = self.conn.execute("SELECT data FROM jobs").fetchall()
         return [Job.model_validate(json.loads(r["data"])) for r in rows]
 
     def upsert_contact(self, c: Contact) -> None:
+        """Upsert contact."""
         self.conn.execute(
             """
             INSERT INTO contacts (id, data)
@@ -139,6 +149,7 @@ class SqliteRepository(Repository):
         self.conn.commit()
 
     def upsert_linkedin_post_match(self, match: LinkedInPostMatch) -> None:
+        """Upsert linkedin post match."""
         self.conn.execute(
             """INSERT INTO linkedin_post_matches (id, job_id, data) VALUES (?, ?, ?)
                ON CONFLICT(id) DO UPDATE SET job_id = excluded.job_id, data = excluded.data""",
@@ -147,6 +158,7 @@ class SqliteRepository(Repository):
         self.conn.commit()
 
     def list_linkedin_post_matches(self, job_id: str | None = None) -> list[LinkedInPostMatch]:
+        """List linkedin post matches."""
         if job_id:
             rows = self.conn.execute(
                 "SELECT data FROM linkedin_post_matches WHERE job_id = ?", (job_id,)
@@ -156,6 +168,7 @@ class SqliteRepository(Repository):
         return [LinkedInPostMatch.model_validate(json.loads(row["data"])) for row in rows]
 
     def incr_action(self, kind: str, day: str) -> int:
+        """Incr action."""
         self.conn.execute(
             """
             INSERT INTO action_counts (kind, day, n)
@@ -171,6 +184,7 @@ class SqliteRepository(Repository):
         return int(row["n"])
 
     def count_actions(self, kind: str, day: str) -> int:
+        """Count actions."""
         row = self.conn.execute(
             "SELECT n FROM action_counts WHERE kind = ? AND day = ?", (kind, day)
         ).fetchone()

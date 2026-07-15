@@ -26,18 +26,21 @@ _DEFAULT_HEADERS = {
 
 
 def _default_http_post(url: str, payload: dict) -> dict:
+    """Default http post."""
     response = httpx.post(url, json=payload, headers=_DEFAULT_HEADERS, timeout=30)
     response.raise_for_status()
     return response.json()
 
 
 def _default_http_get(url: str) -> dict:
+    """Default http get."""
     response = httpx.get(url, headers=_DEFAULT_HEADERS, timeout=30)
     response.raise_for_status()
     return response.json()
 
 
 def _strip_html(text: str) -> str:
+    """Strip html."""
     return re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", text or "")).strip()
 
 
@@ -57,6 +60,7 @@ class MyCareersFutureSource(JobSource):
         http_get: Callable[[str], dict] | None = None,
         detail_workers: int = 6,
     ) -> None:
+        """Initialize the instance."""
         self.search_terms = search_terms
         self.max_age_days = max_age_days
         self.limit = limit
@@ -77,6 +81,7 @@ class MyCareersFutureSource(JobSource):
         return f"{desc} {skills}".strip()
 
     def fetch(self) -> list[RawJob]:
+        """Fetch."""
         results: dict[str, RawJob] = {}
         cutoff = datetime.now().date() - timedelta(days=self.max_age_days)
 

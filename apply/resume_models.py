@@ -21,12 +21,14 @@ class ResumeAchievement(BaseModel):
 
 
 class FitBrief(BaseModel):
+    """Represent fit brief."""
     primary_role_family: str
     secondary_role_family: str = ""
     hiring_outcomes: list[str] = Field(default_factory=list)
 
 
 class KeywordMapping(BaseModel):
+    """Represent keyword mapping."""
     keyword: str
     priority: str
     supporting_evidence: str = ""
@@ -34,6 +36,7 @@ class KeywordMapping(BaseModel):
 
 
 class SelectedEvidence(BaseModel):
+    """Represent selected evidence."""
     evidence_id: str = ""
     source: str = ""
     keyword: str
@@ -43,6 +46,7 @@ class SelectedEvidence(BaseModel):
 
 
 class ResumeVariant(BaseModel):
+    """Represent resume variant."""
     job_id: str
     company: str
     title: str
@@ -57,4 +61,5 @@ class ResumeVariant(BaseModel):
 
     @property
     def text(self) -> str:
+        """Text."""
         return "\n".join(f"- {bullet}" for bullet in self.bullets)

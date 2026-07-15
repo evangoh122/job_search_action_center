@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field
 
 
 class RawJob(BaseModel):
+    """Represent raw job."""
     source: str
     company: str
     title: str
@@ -20,6 +21,7 @@ class RawJob(BaseModel):
 
 
 class Job(BaseModel):
+    """Represent job."""
     id: str
     source: str
     company_canonical: str
@@ -44,6 +46,7 @@ class Job(BaseModel):
 
 
 class Contact(BaseModel):
+    """Represent contact."""
     id: str
     name: str
     company_canonical: str
@@ -56,6 +59,7 @@ class Contact(BaseModel):
 
 
 class EmailDraft(BaseModel):
+    """Represent email draft."""
     job_id: str
     company: str
     to_email: str
@@ -66,6 +70,7 @@ class EmailDraft(BaseModel):
 
 
 class Applicant(BaseModel):
+    """Represent applicant."""
     name: str
     email: str
     resume_url: str = ""
@@ -83,6 +88,7 @@ class Applicant(BaseModel):
 
 
 class ApplicationDraft(BaseModel):
+    """Represent application draft."""
     job_id: str
     company: str
     title: str
@@ -106,6 +112,7 @@ class ApplicationDraft(BaseModel):
 
 
 class LinkedInPostMatch(BaseModel):
+    """Represent linked in post match."""
     id: str
     job_id: str
     job_key: str

@@ -7,6 +7,7 @@ from apply.ats_resume_audit import audit_docx
 
 
 def main() -> None:
+    """Run the command-line entry point."""
     parser = argparse.ArgumentParser(
         description="Audit a DOCX resume for deterministic ATS parsing risks."
     )

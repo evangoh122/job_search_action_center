@@ -27,6 +27,7 @@ HANDLED_STATUSES = {
 
 
 def _load_env() -> None:
+    """Load env."""
     try:
         from dotenv import load_dotenv
         load_dotenv()
@@ -37,6 +38,7 @@ def _load_env() -> None:
 def fetch_comparison_jobs(
     max_age_days: int, *, include_descriptions: bool = True
 ) -> list[RawJob]:
+    """Fetch comparison jobs."""
     jobs = MyCareersFutureSource(
         DEFAULT_TERMS, max_age_days=max_age_days, enrich=include_descriptions
     ).fetch()
@@ -54,6 +56,7 @@ def fetch_comparison_jobs(
 
 
 def store_listings(repo: SqliteRepository, raws: list[RawJob]) -> tuple[int, int]:
+    """Store listings."""
     added = duplicates = 0
     for raw in raws:
         if not raw.company.strip() or not raw.title.strip():
@@ -97,6 +100,7 @@ def import_application_history(repo: SqliteRepository, csv_path: Path) -> tuple[
 
 
 def comparison_markdown(jobs: list[Job]) -> str:
+    """Comparison markdown."""
     jobs = sorted(
         jobs,
         key=lambda j: (j.posted_at is not None, j.posted_at or "", j.company_canonical),
@@ -186,6 +190,7 @@ def comparison_markdown(jobs: list[Job]) -> str:
 
 
 def _parser() -> argparse.ArgumentParser:
+    """Parser."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--db", default=os.environ.get("JOBS_DB_PATH", "data/jobs.sqlite"))
     sub = parser.add_subparsers(dest="command", required=True)
@@ -204,6 +209,7 @@ def _parser() -> argparse.ArgumentParser:
 
 
 def main() -> None:
+    """Run the command-line entry point."""
     _load_env()
     args = _parser().parse_args()
     repo = SqliteRepository(args.db)

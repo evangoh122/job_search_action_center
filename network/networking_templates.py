@@ -8,6 +8,7 @@ from models import LinkedInPostMatch
 
 @dataclass(frozen=True)
 class NetworkingTarget:
+    """Represent networking target."""
     contact_name: str
     contact_role: str
     company: str
@@ -22,6 +23,7 @@ class NetworkingTarget:
 
     @classmethod
     def from_dict(cls, value: dict) -> "NetworkingTarget":
+        """Build an instance from dict."""
         target = cls(**{field: str(value.get(field, "")).strip()
                         for field in cls.__dataclass_fields__})
         missing = [name for name in (
@@ -34,6 +36,7 @@ class NetworkingTarget:
 
 
 def _first_name(name: str) -> str:
+    """First name."""
     return name.split()[0]
 
 

@@ -48,16 +48,19 @@ _DEFAULT_TITLE_KEYWORDS = [
 
 
 def _default_get(url: str) -> str:
+    """Default get."""
     response = httpx.get(url, headers=_HEADERS, timeout=30, follow_redirects=True)
     response.raise_for_status()
     return response.text
 
 
 def _strip_html(text: str) -> str:
+    """Strip html."""
     return re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", html.unescape(text or ""))).strip()
 
 
 def _parse_dt(raw: object) -> datetime | None:
+    """Parse dt."""
     if raw is None:
         return None
     try:
@@ -74,6 +77,7 @@ def _parse_dt(raw: object) -> datetime | None:
 
 
 def _iter_json_objects(value: object) -> Iterable[dict]:
+    """Iter json objects."""
     if isinstance(value, dict):
         yield value
         for child in value.values():
@@ -84,6 +88,7 @@ def _iter_json_objects(value: object) -> Iterable[dict]:
 
 
 def _extract_json_ld(html_text: str) -> Iterable[dict]:
+    """Extract json ld."""
     pattern = re.compile(
         r'<script[^>]+type=["\']application/ld\+json["\'][^>]*>(.*?)</script>',
         re.IGNORECASE | re.DOTALL,
@@ -103,6 +108,7 @@ def _extract_json_ld(html_text: str) -> Iterable[dict]:
 
 
 def _company_name(obj: dict) -> str:
+    """Company name."""
     company = (
         obj.get("company")
         or obj.get("companyName")
@@ -137,6 +143,7 @@ def _extract_embedded_json(html_text: str) -> Iterable[dict]:
 
 
 def _location_text(obj: dict) -> str:
+    """Location text."""
     loc = obj.get("jobLocation") or obj.get("location") or obj.get("locations") or ""
     if isinstance(loc, list):
         return " ".join(_location_text({"location": item}) for item in loc)
@@ -149,6 +156,7 @@ def _location_text(obj: dict) -> str:
 
 
 class EFinancialCareersSource(JobSource):
+    """Represent e financial careers source."""
     def __init__(
         self,
         search_terms: list[str],
@@ -157,6 +165,7 @@ class EFinancialCareersSource(JobSource):
         max_age_days: int = 7,
         http_get: Callable[[str], str] | None = None,
     ) -> None:
+        """Initialize the instance."""
         self.search_terms = search_terms
         self.location = location
         self.location_filter = location.lower() if location else None
@@ -165,20 +174,24 @@ class EFinancialCareersSource(JobSource):
         self.http_get = http_get if http_get is not None else _default_get
 
     def _search_url(self, term: str) -> str:
+        """Search url."""
         slug = lambda value: re.sub(r"[^a-z0-9]+", "-", value.casefold()).strip("-")
         return _SEARCH_URL.format(term=slug(term), location=slug(self.location))
 
     def _matches_title(self, title: str) -> bool:
+        """Matches title."""
         t = title.lower()
         return any(k in t for k in self.title_keywords)
 
     def _matches_location(self, obj: dict) -> bool:
+        """Matches location."""
         if self.location_filter is None:
             return True
         text = _location_text(obj).lower()
         return not text or self.location_filter in text
 
     def _to_job(self, obj: dict) -> RawJob | None:
+        """To job."""
         title = str(obj.get("title") or obj.get("jobTitle") or obj.get("name") or "").strip()
         company = _company_name(obj)
         url = str(obj.get("url") or obj.get("jobUrl") or obj.get("absoluteUrl") or "").strip()
@@ -209,6 +222,7 @@ class EFinancialCareersSource(JobSource):
         )
 
     def fetch(self) -> list[RawJob]:
+        """Fetch."""
         results: dict[str, RawJob] = {}
         consecutive_failures = 0
         for term in self.search_terms:

@@ -13,6 +13,7 @@ _TERMINAL = {"submitted", "applied", "interviewing", "offer", "rejected", "close
 
 
 def render_packet(matches, applicant_name: str, applicant_proof: str, relevance: str) -> str:
+    """Render packet."""
     lines = [
         "# LinkedIn vacancy-post matches", "",
         "Every result requires review. No connection request or message was sent.", "",
@@ -45,6 +46,7 @@ def render_packet(matches, applicant_name: str, applicant_proof: str, relevance:
 
 
 def main() -> None:
+    """Run the command-line entry point."""
     try:
         from dotenv import load_dotenv
         load_dotenv()

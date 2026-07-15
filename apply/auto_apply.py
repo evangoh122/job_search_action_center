@@ -22,6 +22,7 @@ DraftSink = Callable[[ApplicationDraft], str]
 
 
 def load_approval_keys(path: str | Path | None) -> set[str]:
+    """Load approval keys."""
     if not path:
         return set()
     approval_path = Path(path)
@@ -33,6 +34,7 @@ def load_approval_keys(path: str | Path | None) -> set[str]:
 
 
 class AutoApplier:
+    """Represent auto applier."""
     def __init__(
         self,
         applicant: Applicant,
@@ -43,6 +45,7 @@ class AutoApplier:
         draft_sink: DraftSink | None = None,
         achievements: Collection[ResumeAchievement] = (),
     ) -> None:
+        """Initialize the instance."""
         self.applicant = applicant
         self.dry_run = dry_run
         self.submitter = submitter
@@ -54,9 +57,11 @@ class AutoApplier:
         self.last_draft = None
 
     def is_approved(self, job: Job) -> bool:
+        """Return whether approved."""
         return job.id in self.approved_job_keys or job.dedupe_key in self.approved_job_keys
 
     def _missing_profile_fields(self) -> list[str]:
+        """Missing profile fields."""
         missing = [name for name in ("name", "email", "phone") if not getattr(self.applicant, name)]
         if not (self.applicant.resume_path or self.applicant.resume_url):
             missing.append("resume_path_or_url")

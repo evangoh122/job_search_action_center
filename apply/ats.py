@@ -14,6 +14,7 @@ from models import Applicant, Job
 
 @dataclass(frozen=True)
 class ApplicationPlan:
+    """Represent application plan."""
     provider: str
     form_url: str
     fields: dict[str, str]
@@ -21,6 +22,7 @@ class ApplicationPlan:
 
 
 def _split_name(name: str) -> tuple[str, str]:
+    """Split name."""
     parts = (name or "").split()
     first = parts[0] if parts else ""
     last = " ".join(parts[1:]) if len(parts) > 1 else ""
@@ -28,6 +30,7 @@ def _split_name(name: str) -> tuple[str, str]:
 
 
 def _hosted_form_url(job: Job) -> str:
+    """Hosted form url."""
     url = job.url.strip()
     if (job.ats_type or "").casefold() == "greenhouse" and "#" not in url:
         return f"{url}#app"
@@ -35,6 +38,7 @@ def _hosted_form_url(job: Job) -> str:
 
 
 def hosted_application_plan(job: Job, applicant: Applicant) -> ApplicationPlan:
+    """Hosted application plan."""
     first, last = _split_name(applicant.name)
     fields = {
         "first_name": first,

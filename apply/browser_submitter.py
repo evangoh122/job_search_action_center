@@ -33,6 +33,7 @@ _FIELD_SELECTORS = {
 
 
 class PlaywrightSubmitter:
+    """Represent playwright submitter."""
     def __init__(
         self,
         *,
@@ -41,6 +42,7 @@ class PlaywrightSubmitter:
         submit: bool = True,
         screenshot_dir: str = "data/application_screenshots",
     ) -> None:
+        """Initialize the instance."""
         self.user_data_dir = user_data_dir
         self.headless = headless
         self.submit = submit
@@ -48,6 +50,7 @@ class PlaywrightSubmitter:
 
     @staticmethod
     def _fill_locator(locator, value: str) -> bool:
+        """Fill locator."""
         try:
             if locator.count() == 0:
                 return False
@@ -66,6 +69,7 @@ class PlaywrightSubmitter:
             return False
 
     def _fill_fields(self, page, plan: ApplicationPlan) -> set[str]:
+        """Fill fields."""
         filled: set[str] = set()
         for key, value in plan.fields.items():
             for selector in _FIELD_SELECTORS.get(key, []):
@@ -84,6 +88,7 @@ class PlaywrightSubmitter:
 
     @staticmethod
     def _has_captcha(page) -> bool:
+        """Return whether  captcha."""
         selectors = "iframe[src*='captcha' i], [class*='captcha' i], [id*='captcha' i]"
         try:
             return page.locator(selectors).count() > 0
@@ -92,6 +97,7 @@ class PlaywrightSubmitter:
 
     @staticmethod
     def _missing_required(page) -> list[str]:
+        """Missing required."""
         script = """els => els.filter(el => {
             if (el.disabled || el.offsetParent === null) return false;
             if ((el.type === 'checkbox' || el.type === 'radio')) return !el.checked;
@@ -103,6 +109,7 @@ class PlaywrightSubmitter:
             return ["unknown_required_fields"]
 
     def _screenshot(self, page, job: Job) -> None:
+        """Screenshot."""
         try:
             self.screenshot_dir.mkdir(parents=True, exist_ok=True)
             page.screenshot(path=str(self.screenshot_dir / f"{job.id}.png"), full_page=True)
@@ -110,6 +117,7 @@ class PlaywrightSubmitter:
             logger.debug("Could not capture application screenshot", exc_info=True)
 
     def __call__(self, job: Job, applicant: Applicant, plan: ApplicationPlan) -> str:
+        """Execute the configured operation."""
         try:
             from playwright.sync_api import sync_playwright
         except ImportError as exc:

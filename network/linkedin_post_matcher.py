@@ -34,25 +34,30 @@ HttpPost = Callable[[str, dict], list | dict]
 
 
 def linkedin_job_ids(job: Job) -> set[str]:
+    """Linkedin job ids."""
     values = {job.url, *job.source_urls.values()}
     return {match.group(1) for value in values for match in _JOB_ID.finditer(value or "")}
 
 
 def _tokens(value: str) -> set[str]:
+    """Tokens."""
     return set(re.findall(r"[a-z0-9]+", normalize_title(value)))
 
 
 def _similarity(left: str, right: str) -> float:
+    """Similarity."""
     a, b = _tokens(left), _tokens(right)
     return len(a & b) / len(a | b) if a | b else 0.0
 
 
 def _coverage(needle: str, haystack: str) -> float:
+    """Coverage."""
     expected, observed = _tokens(needle), _tokens(haystack)
     return len(expected & observed) / len(expected) if expected else 0.0
 
 
 def _post_date(value: object) -> datetime | None:
+    """Post date."""
     if isinstance(value, dict):
         value = value.get("date") or value.get("timestamp")
     try:
@@ -67,6 +72,7 @@ def _post_date(value: object) -> datetime | None:
 
 
 def score_post(job: Job, item: dict) -> LinkedInPostMatch | None:
+    """Score post."""
     text = str(item.get("content") or item.get("text") or item.get("commentary") or "").strip()
     post_url = str(item.get("linkedinUrl") or item.get("postUrl") or item.get("url") or "").strip()
     if not text or not post_url:
@@ -132,14 +138,17 @@ def score_post(job: Job, item: dict) -> LinkedInPostMatch | None:
 
 
 class LinkedInPostMatcher:
+    """Represent linked in post matcher."""
     def __init__(self, token: str, *, max_posts: int = 10, posted_limit: str = "week",
                  http_post: HttpPost | None = None) -> None:
+        """Initialize the instance."""
         self.token = token
         self.max_posts = max(1, min(max_posts, 50))
         self.posted_limit = posted_limit
         self.http_post = http_post or self._default_post
 
     def _default_post(self, url: str, body: dict) -> list:
+        """Default post."""
         response = httpx.post(url, json=body, timeout=180)
         response.raise_for_status()
         value = response.json()
@@ -148,6 +157,7 @@ class LinkedInPostMatcher:
     @staticmethod
     def queries(job: Job) -> list[str]:
         # Actor documentation states that LinkedIn limits a query to 85 characters.
+        """Queries."""
         title_query = f'"{job.title[:83]}"'
         # A pasted LinkedIn job ID is the strongest discoverable cross-reference.
         referral_query = f'referral "{job.title[:74]}"'
@@ -156,6 +166,7 @@ class LinkedInPostMatcher:
         ]))
 
     def find_matches(self, job: Job) -> list[LinkedInPostMatch]:
+        """Find matches."""
         url = _RUN_URL.format(actor=_ACTOR, token=self.token)
         body = {
             "searchQueries": self.queries(job), "postedLimit": self.posted_limit,

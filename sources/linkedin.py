@@ -59,6 +59,7 @@ class LinkedInJobSource(JobSource):
         max_results_per_term: int = 25,
         http_post: HttpPost | None = None,
     ) -> None:
+        """Initialize the instance."""
         self.token = token
         self.search_terms = search_terms
         self.location = location
@@ -67,6 +68,7 @@ class LinkedInJobSource(JobSource):
         self.http_post = http_post or self._default_post
 
     def _default_post(self, url: str, body: dict) -> list:
+        """Default post."""
         r = httpx.post(url, json=body, timeout=180)  # actor run-sync can be slow
         r.raise_for_status()
         resp = r.json()
@@ -76,6 +78,7 @@ class LinkedInJobSource(JobSource):
 
     @staticmethod
     def _items(resp) -> list:
+        """Items."""
         if isinstance(resp, dict):
             return resp.get("items") or resp.get("data") or []
         return resp or []
@@ -94,6 +97,7 @@ class LinkedInJobSource(JobSource):
             return None
 
     def fetch(self) -> list[RawJob]:
+        """Fetch."""
         cutoff_date = (datetime.now() - timedelta(days=self.max_age_days)).date()
         seen_urls: set[str] = set()
         results: list[RawJob] = []

@@ -17,6 +17,7 @@ _STANDARD_SECTIONS = {
 
 
 class AtsResumeAudit(BaseModel):
+    """Represent ats resume audit."""
     path: str
     text_extraction_succeeded: bool
     extracted_character_count: int
@@ -32,10 +33,12 @@ class AtsResumeAudit(BaseModel):
 
 
 def _xml(root_bytes: bytes) -> ElementTree.Element:
+    """Xml."""
     return ElementTree.fromstring(root_bytes)
 
 
 def _document_text(root: ElementTree.Element) -> tuple[str, list[str]]:
+    """Document text."""
     paragraphs: list[str] = []
     for paragraph in root.iter(f"{_W}p"):
         parts: list[str] = []
@@ -53,6 +56,7 @@ def _document_text(root: ElementTree.Element) -> tuple[str, list[str]]:
 
 
 def _contains_phrase(text: str, phrase: str) -> bool:
+    """Contains phrase."""
     return bool(re.search(rf"(?<!\w){re.escape(phrase)}(?!\w)", text, re.IGNORECASE))
 
 

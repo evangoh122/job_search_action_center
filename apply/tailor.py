@@ -10,12 +10,14 @@ from scoring import PRIMARY, SECONDARY  # sets of lowercased keywords
 
 
 def matched_keywords(job: Job) -> list[str]:
+    """Matched keywords."""
     text = f"{job.title} {job.description}".lower()
     found = [k for k in PRIMARY if k in text] + [k for k in SECONDARY if k in text]
     return sorted(set(found))
 
 
 def _resume_version_id(job: Job, filename: str, evidence_ids: list[str]) -> str:
+    """Resume version id."""
     material = "\x1f".join([job.id, job.dedupe_key, filename, *evidence_ids]).encode("utf-8")
     return hashlib.sha256(material).hexdigest()[:16]
 
@@ -26,6 +28,7 @@ def tailor(
     applicant_name: str = "",
     achievements: list[ResumeAchievement] | None = None,
 ) -> ApplicationDraft:
+    """Tailor."""
     kws = matched_keywords(job)
     kw_phrase = ", ".join(kws[:6]) if kws else "the role's core requirements"
     resume_variant = build_resume_variant(job, achievements or []) if achievements else None

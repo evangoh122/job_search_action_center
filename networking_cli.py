@@ -11,6 +11,7 @@ from network.networking_templates import NetworkingTarget, create_coffee_chat_pr
 
 
 def _load_targets(value: str) -> list[dict]:
+    """Load targets."""
     if not value.strip():
         return []
     try:
@@ -23,6 +24,7 @@ def _load_targets(value: str) -> list[dict]:
 
 
 def render_review_packet(targets: list[NetworkingTarget], applicant_name: str) -> str:
+    """Render review packet."""
     lines = [f"# Networking drafts — {date.today().isoformat()}", "",
              "Review every draft before sending. Nothing in this file was sent automatically.", ""]
     for i, target in enumerate(targets, 1):
@@ -52,6 +54,7 @@ def render_review_packet(targets: list[NetworkingTarget], applicant_name: str) -
 
 
 def main() -> None:
+    """Run the command-line entry point."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--targets", default=os.environ.get(
         "NETWORKING_TARGETS_JSON") or "config/networking_targets.example.json")
