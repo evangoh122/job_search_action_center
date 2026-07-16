@@ -70,11 +70,12 @@ def test_tailor_can_attach_keyword_xyz_resume_variant():
 
 
 def test_resume_version_changes_when_rendered_resume_content_changes():
+    job = _job()
     first = ResumeAchievement(
         evidence_id="same-id", keyword="machine learning", result="Improved coverage",
         metric="10 models", method="using Python",
     )
     changed = first.model_copy(update={"metric": "20 models"})
-    assert tailor(_job(), achievements=[first]).resume_version_id != tailor(
-        _job(), achievements=[changed]
+    assert tailor(job, achievements=[first]).resume_version_id != tailor(
+        job, achievements=[changed]
     ).resume_version_id

@@ -109,7 +109,15 @@ def main() -> None:
             job.status = "submission_unknown"
             repo.upsert_job(job)
         print(f"{result}\t{job.company_canonical}\t{job.title}")
-        if result in {"error", "incomplete", "unsupported", "salary_review_required"}:
+        if result in {
+            "error",
+            "incomplete",
+            "unsupported",
+            "salary_review_required",
+            "captcha_required",
+            "review_required",
+            "submission_unknown",
+        }:
             raise SystemExit(1)
         return
 
