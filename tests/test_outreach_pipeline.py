@@ -6,6 +6,7 @@ from datetime import datetime
 from config import DAILY_CAPS
 from models import Contact, EmailDraft, Job
 from network.gmail_drafter import (
+    FallbackDrafter,
     GmailDrafter,
     ReviewQueueDrafter,
     refresh_gmail_access_token,
@@ -40,6 +41,25 @@ def test_review_queue_drafter_writes_jsonl(tmp_path):
     did = ReviewQueueDrafter(str(path)).create_draft(_draft())
     assert did
     assert "x@acme.com" in path.read_text(encoding="utf-8")
+
+
+def test_fallback_drafter_preserves_drafts_after_gmail_failure(tmp_path):
+    class FailingDrafter:
+        def __init__(self):
+            self.calls = 0
+
+        def create_draft(self, draft):
+            self.calls += 1
+            raise RuntimeError("expired Gmail credentials")
+
+    primary = FailingDrafter()
+    path = tmp_path / "drafts.jsonl"
+    drafter = FallbackDrafter(primary, ReviewQueueDrafter(str(path)))
+
+    assert drafter.create_draft(_draft())
+    assert drafter.create_draft(_draft())
+    assert primary.calls == 1
+    assert path.read_text(encoding="utf-8").count("x@acme.com") == 2
 
 
 def test_refresh_gmail_access_token():

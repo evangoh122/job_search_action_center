@@ -26,6 +26,8 @@ _DRAFTS_URL = "https://gmail.googleapis.com/gmail/v1/users/me/drafts"
 
 
 class Drafter(Protocol):
+    """Create a reviewable email draft without sending it."""
+
     def create_draft(self, draft: EmailDraft) -> str: ...
 
 
@@ -126,7 +128,31 @@ class ReviewQueueDrafter:
         self.path.parent.mkdir(parents=True, exist_ok=True)
 
     def create_draft(self, draft: EmailDraft) -> str:
+        """Append one draft to the local review queue and return its identifier."""
         draft_id = str(uuid.uuid4())
         with self.path.open("a", encoding="utf-8") as f:
             f.write(json.dumps({"id": draft_id, **draft.model_dump()}) + "\n")
         return draft_id
+
+
+class FallbackDrafter:
+    """Use a primary drafter, switching permanently to a safe fallback after an error."""
+
+    def __init__(self, primary: Drafter, fallback: Drafter):
+        """Store the primary and fallback draft destinations."""
+        self.primary = primary
+        self.fallback = fallback
+        self._primary_enabled = True
+
+    def create_draft(self, draft: EmailDraft) -> str:
+        """Create a draft, preserving it in the fallback queue if Gmail fails."""
+        if self._primary_enabled:
+            try:
+                return self.primary.create_draft(draft)
+            except Exception:
+                self._primary_enabled = False
+                logger.warning(
+                    "Primary email drafter failed; using the local review queue for this run",
+                    exc_info=True,
+                )
+        return self.fallback.create_draft(draft)

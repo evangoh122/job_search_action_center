@@ -414,7 +414,7 @@ def _build_drafter_from_env():
     token (GMAIL_TOKEN), else the local review-queue JSONL fallback."""
     import os
 
-    from network.gmail_drafter import GmailDrafter, ReviewQueueDrafter
+    from network.gmail_drafter import FallbackDrafter, GmailDrafter, ReviewQueueDrafter
 
     sender = os.environ.get("APPLICANT_EMAIL", "me") or "me"
     client_id = os.environ.get("GMAIL_CLIENT_ID")
@@ -422,13 +422,19 @@ def _build_drafter_from_env():
     refresh_token = os.environ.get("GMAIL_REFRESH_TOKEN")
     if client_id and client_secret and refresh_token:
         logger.info("Gmail drafter: OAuth2 refresh-token flow.")
-        return GmailDrafter.from_refresh_token(
-            client_id, client_secret, refresh_token, sender=sender
+        return FallbackDrafter(
+            GmailDrafter.from_refresh_token(
+                client_id, client_secret, refresh_token, sender=sender
+            ),
+            ReviewQueueDrafter(),
         )
     gmail_token = os.environ.get("GMAIL_TOKEN")
     if gmail_token:
         logger.info("Gmail drafter: static bearer token.")
-        return GmailDrafter(gmail_token, sender=sender)
+        return FallbackDrafter(
+            GmailDrafter(gmail_token, sender=sender),
+            ReviewQueueDrafter(),
+        )
     logger.info("Gmail not configured — using local review-queue JSONL fallback.")
     return ReviewQueueDrafter()
 

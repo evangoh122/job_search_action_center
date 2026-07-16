@@ -90,3 +90,11 @@ jobs:
           name: linkedin-post-matches
           path: data/linkedin_post_matches.md
           retention-days: 14
+
+      - name: Upload outreach draft fallback queue
+        if: always() && hashFiles('data/outreach_drafts.jsonl') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: outreach-drafts
+          path: data/outreach_drafts.jsonl
+          retention-days: 14
