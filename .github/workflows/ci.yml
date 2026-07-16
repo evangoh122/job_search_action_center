@@ -77,7 +77,11 @@ jobs:
 
   dependency-review:
     name: Dependency review
-    if: github.event_name == 'pull_request'
+    # Private repositories require GitHub Advanced Security for this action.
+    # Set the repository variable DEPENDENCY_REVIEW_ENABLED=true after enabling it.
+    if: >-
+      github.event_name == 'pull_request' &&
+      (github.event.repository.private == false || vars.DEPENDENCY_REVIEW_ENABLED == 'true')
     runs-on: ubuntu-latest
     permissions:
       contents: read

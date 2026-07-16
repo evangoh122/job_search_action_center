@@ -16,9 +16,13 @@ def matched_keywords(job: Job) -> list[str]:
     return sorted(set(found))
 
 
-def _resume_version_id(job: Job, filename: str, evidence_ids: list[str]) -> str:
-    """Resume version id."""
-    material = "\x1f".join([job.id, job.dedupe_key, filename, *evidence_ids]).encode("utf-8")
+def _resume_version_id(
+    job: Job, filename: str, evidence_ids: list[str], rendered_resume: str
+) -> str:
+    """Hash the vacancy, selected evidence, and actual rendered resume content."""
+    material = "\x1f".join(
+        [job.id, job.dedupe_key, filename, *evidence_ids, rendered_resume]
+    ).encode("utf-8")
     return hashlib.sha256(material).hexdigest()[:16]
 
 
@@ -64,7 +68,12 @@ def tailor(
         cover_letter=cover_letter,
         application_link=job.url,
         resume_filename=filename,
-        resume_version_id=_resume_version_id(job, filename, evidence_ids),
+        resume_version_id=_resume_version_id(
+            job,
+            filename,
+            evidence_ids,
+            resume_variant.text if resume_variant else "",
+        ),
         resume_evidence_ids=evidence_ids,
         matched_keywords=kws,
         resume_keywords=resume_variant.keywords if resume_variant else [],

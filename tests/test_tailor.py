@@ -67,3 +67,14 @@ def test_tailor_can_attach_keyword_xyz_resume_variant():
     assert draft.resume_selected_evidence
     assert draft.resume_change_log
     assert draft.resume_pagination_status.startswith("two-page-targeted")
+
+
+def test_resume_version_changes_when_rendered_resume_content_changes():
+    first = ResumeAchievement(
+        evidence_id="same-id", keyword="machine learning", result="Improved coverage",
+        metric="10 models", method="using Python",
+    )
+    changed = first.model_copy(update={"metric": "20 models"})
+    assert tailor(_job(), achievements=[first]).resume_version_id != tailor(
+        _job(), achievements=[changed]
+    ).resume_version_id

@@ -7,16 +7,16 @@ def _raw(source: str, url: str, title: str = "VP Data and Analytics") -> RawJob:
     return RawJob(source=source, company="DBS Bank", title=title, url=url)
 
 
-def test_store_listings_merges_cross_board_urls():
+def test_store_listings_keeps_same_title_roles_distinct_without_requisition_evidence():
     repo = SqliteRepository()
     added, duplicates = store_listings(repo, [
         _raw("linkedin", "https://li/1"),
         _raw("mycareersfuture", "https://mcf/2", "Vice President Data & Analytics"),
     ])
-    assert (added, duplicates) == (1, 1)
+    assert (added, duplicates) == (2, 0)
     jobs = repo.list_jobs()
-    assert len(jobs) == 1
-    assert set(jobs[0].source_urls) == {"linkedin", "mycareersfuture"}
+    assert len(jobs) == 2
+    assert {job.url for job in jobs} == {"https://li/1", "https://mcf/2"}
 
 
 def test_import_history_marks_report_do_not_apply(tmp_path):

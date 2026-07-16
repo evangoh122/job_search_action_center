@@ -11,7 +11,14 @@ import os
 from collections import Counter
 from pathlib import Path
 
-from matching import find_description_matches, find_duplicate_job, merge_jobs, rank_description_matches
+from matching import (
+    find_description_matches,
+    find_duplicate_job,
+    merge_jobs,
+    normalize_company,
+    normalize_title,
+    rank_description_matches,
+)
 from models import Job, RawJob
 from runner import DEFAULT_TERMS, normalize
 from sources.efinancialcareers import EFinancialCareersSource
@@ -21,8 +28,8 @@ from store.repository import SqliteRepository
 
 
 HANDLED_STATUSES = {
-    "queued", "drafted", "approved", "submitted", "applied", "interviewing", "offer",
-    "rejected", "closed",
+    "queued", "drafted", "approved", "submission_unknown", "submitted", "applied",
+    "interviewing", "offer", "rejected", "closed",
 }
 
 
@@ -87,6 +94,15 @@ def import_application_history(repo: SqliteRepository, csv_path: Path) -> tuple[
                 url=row.get("url") or "",
             ))
             job = repo.get_job_by_dedupe_key(candidate.dedupe_key)
+            if job is None and not (row.get("url") or "").strip():
+                # A URL-less history row is safe only when company+title identifies one
+                # current vacancy. Multiple same-title requisitions remain unmatched.
+                candidates = [
+                    item for item in repo.list_jobs()
+                    if normalize_company(item.company_canonical) == normalize_company(candidate.company_canonical)
+                    and normalize_title(item.title) == normalize_title(candidate.title)
+                ]
+                job = candidates[0] if len(candidates) == 1 else None
             if job is None:
                 unmatched += 1
                 continue

@@ -30,6 +30,14 @@ def test_identity_matches_common_cross_board_variants():
     )
 
 
+def test_identity_separates_same_title_requisitions_by_stable_url():
+    first = job_identity_key("DBS", "VP Data", url="https://dbs.example/jobs/100?utm_source=x")
+    same = job_identity_key("DBS", "VP Data", url="https://dbs.example/jobs/100")
+    second = job_identity_key("DBS", "VP Data", url="https://dbs.example/jobs/200")
+    assert first == same
+    assert first != second
+
+
 def test_merge_retains_links_and_applied_status():
     existing = _job("linkedin", "https://linkedin/jobs/1", status="applied")
     incoming = _job("mycareersfuture", "https://mcf/jobs/2")
@@ -41,6 +49,25 @@ def test_merge_retains_links_and_applied_status():
         "linkedin": "https://linkedin/jobs/1",
         "mycareersfuture": "https://mcf/jobs/2",
     }
+
+
+def test_merge_preserves_strongest_status_in_both_orders():
+    new = _job("linkedin", "https://linkedin/jobs/1", status="new")
+    applied = _job("mycareersfuture", "https://mcf/jobs/2", status="applied")
+    assert merge_jobs(new, applied).status == "applied"
+    assert merge_jobs(applied, new).status == "applied"
+
+
+def test_description_starting_with_about_us_retains_substantive_content():
+    responsibilities = (
+        "About us. We are a bank. Lead the enterprise data platform roadmap, governance, "
+        "engineering delivery, cloud controls, analytics products, and regional stakeholders. "
+    ) * 4
+    left = _job("linkedin", "https://linkedin/jobs/1")
+    right = _job("mycareersfuture", "https://mcf/jobs/2")
+    left.description = responsibilities
+    right.description = responsibilities.replace("regional", "global")
+    assert find_description_matches([left, right])
 
 
 def test_finds_duplicate_from_writeup_when_title_and_company_differ():

@@ -188,7 +188,7 @@ class EFinancialCareersSource(JobSource):
         if self.location_filter is None:
             return True
         text = _location_text(obj).lower()
-        return not text or self.location_filter in text
+        return bool(text) and self.location_filter in text
 
     def _to_job(self, obj: dict) -> RawJob | None:
         """To job."""

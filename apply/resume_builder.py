@@ -229,6 +229,8 @@ def build_resume_variant(
     job_text = f"{job.title} {job.description}".lower()
     ranked: list[tuple[float, int, str, ResumeAchievement, str]] = []
     for achievement in achievements:
+        if achievement.disclosure_constraints.strip():
+            continue
         labels = {achievement.keyword.lower(), *(tag.lower() for tag in achievement.tags)}
         if include_tags and not (labels & {tag.lower() for tag in include_tags}):
             continue

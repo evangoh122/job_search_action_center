@@ -30,17 +30,21 @@ _BASE = "https://api.hubapi.com"
 
 
 class HubSpotRepository(Repository):
+    """Persist jobs and contacts in HubSpot with local action counters."""
+
     def __init__(
         self,
         token: str,
         http: HttpFn | None = None,
         counter: Repository | None = None,
     ) -> None:
+        """Configure HubSpot authentication, HTTP transport, and counters."""
         self.token = token
         self.http = http or self._default_http
         self.counter = counter or SqliteRepository(":memory:")
 
     def _default_http(self, method: str, url: str, body: dict | None) -> dict:
+        """Perform a HubSpot request with bounded rate-limit retries."""
         headers = {
             "Authorization": f"Bearer {self.token}",
             "Content-Type": "application/json",
@@ -57,6 +61,7 @@ class HubSpotRepository(Repository):
         raise RuntimeError("HubSpot request failed after retries")
 
     def _job_props(self, job: Job) -> dict:
+        """Serialize a job into configured HubSpot deal properties."""
         return {
             "dealname": job.title,
             "dedupe_key": job.dedupe_key,
@@ -68,6 +73,7 @@ class HubSpotRepository(Repository):
         }
 
     def _search_deal(self, prop: str, value: str) -> dict | None:
+        """Find the first HubSpot deal matching one property value."""
         body = {
             "filterGroups": [{"filters": [{"propertyName": prop, "operator": "EQ", "value": value}]}],
             "properties": ["dedupe_key", "job_id", "job_data"],
@@ -77,6 +83,7 @@ class HubSpotRepository(Repository):
         return results[0] if results else None
 
     def upsert_job(self, job: Job) -> None:
+        """Create or replace the HubSpot deal for a vacancy key."""
         existing = self._search_deal("dedupe_key", job.dedupe_key)
         props = {"properties": self._job_props(job)}
         if existing:
@@ -85,6 +92,7 @@ class HubSpotRepository(Repository):
             self.http("POST", f"{_BASE}/crm/v3/objects/deals", props)
 
     def get_job(self, job_id: str) -> Job | None:
+        """Return one job stored in HubSpot by application job identifier."""
         found = self._search_deal("job_id", job_id)
         if not found:
             return None
@@ -92,6 +100,7 @@ class HubSpotRepository(Repository):
         return Job.model_validate_json(data) if data else None
 
     def list_jobs(self) -> list[Job]:
+        """Page through and decode all valid HubSpot job deals."""
         out: list[Job] = []
         url: str | None = f"{_BASE}/crm/v3/objects/deals?limit=100&properties=job_data"
         while url:
@@ -113,6 +122,7 @@ class HubSpotRepository(Repository):
         return out
 
     def upsert_contact(self, c: Contact) -> None:
+        """Create or update an email-addressed HubSpot contact."""
         # The Gmail Sales extension attaches open-tracking by matching the recipient email,
         # so a contact with no email is useless here — skip it. Uses only standard HubSpot
         # properties (email/firstname/company/jobtitle) to avoid custom-property setup.
@@ -142,7 +152,9 @@ class HubSpotRepository(Repository):
             self.http("POST", f"{_BASE}/crm/v3/objects/contacts", props)
 
     def incr_action(self, kind: str, day: str) -> int:
+        """Increment a day-scoped action counter in the delegated store."""
         return self.counter.incr_action(kind, day)
 
     def count_actions(self, kind: str, day: str) -> int:
+        """Return a day-scoped action count from the delegated store."""
         return self.counter.count_actions(kind, day)

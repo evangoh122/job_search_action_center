@@ -10,6 +10,7 @@ dependencies = [
     "scikit-learn>=1.4",
     "google-auth>=2.0",
     "requests>=2.31",
+    "defusedxml>=0.7",
 ]
 
 [project.scripts]
@@ -57,3 +58,6 @@ py-modules = [
 
 [tool.setuptools.packages.find]
 include = ["apply*", "store*", "config*", "sources*", "network*", "scripts*", "resume*"]
+
+[tool.setuptools.data-files]
+"." = ["Target-list.json"]

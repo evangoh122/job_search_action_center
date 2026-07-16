@@ -3,11 +3,14 @@ from __future__ import annotations
 import re
 import zipfile
 from pathlib import Path
-from xml.etree import ElementTree
+
+from defusedxml import ElementTree
+from defusedxml.common import DefusedXmlException
 
 from pydantic import BaseModel, Field
 
 _W = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
+_MAX_DOCUMENT_XML_BYTES = 10 * 1024 * 1024
 _STANDARD_SECTIONS = {
     "summary": {"summary", "professional summary", "executive profile"},
     "experience": {"experience", "professional experience", "work experience"},
@@ -72,6 +75,9 @@ def audit_docx(path: str | Path, required_keywords: list[str] | None = None) -> 
             document_name = "word/document.xml"
             if document_name not in names:
                 raise ValueError("DOCX is missing word/document.xml")
+            info = archive.getinfo(document_name)
+            if info.file_size > _MAX_DOCUMENT_XML_BYTES:
+                raise ValueError("DOCX word/document.xml exceeds the 10 MiB safety limit")
             root = _xml(archive.read(document_name))
             text, paragraphs = _document_text(root)
 
@@ -89,7 +95,7 @@ def audit_docx(path: str | Path, required_keywords: list[str] | None = None) -> 
             has_headers_or_footers = any(
                 name.startswith("word/header") or name.startswith("word/footer") for name in names
             )
-    except (zipfile.BadZipFile, ElementTree.ParseError, RuntimeError) as exc:
+    except (zipfile.BadZipFile, ElementTree.ParseError, DefusedXmlException, RuntimeError) as exc:
         raise ValueError("DOCX could not be parsed; it may be corrupt or encrypted") from exc
 
     normalized_headings = {re.sub(r"[^a-z ]", "", p.casefold()).strip() for p in paragraphs}

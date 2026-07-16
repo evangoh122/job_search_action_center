@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 
+import apply.ats_resume_audit as audit_module
 from apply.ats_resume_audit import audit_docx
 
 _PREFIX = (
@@ -90,3 +91,16 @@ def test_audit_reports_corrupt_docx_clearly(tmp_path: Path):
 
     with pytest.raises(ValueError, match="corrupt or encrypted"):
         audit_docx(path)
+
+
+def test_audit_rejects_oversized_document_xml_before_reading(tmp_path: Path, monkeypatch):
+    monkeypatch.setattr(audit_module, "_MAX_DOCUMENT_XML_BYTES", 32)
+    path = _docx(tmp_path, _paragraph("Professional Experience"))
+    with pytest.raises(ValueError, match="safety limit"):
+        audit_docx(path)
+
+
+def test_audit_uses_hardened_xml_parser(tmp_path: Path):
+    body = '<!DOCTYPE x [<!ENTITY boom "unsafe">]><w:p><w:r><w:t>&boom;</w:t></w:r></w:p>'
+    with pytest.raises(ValueError, match="corrupt or encrypted"):
+        audit_docx(_docx(tmp_path, body))

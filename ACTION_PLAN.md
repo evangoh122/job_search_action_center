@@ -1,5 +1,10 @@
 # Job Application Action Plan
 
+> **Authoritative safety rule:** automated application submission remains dry-run unless one
+> exact vacancy is launched through the protected `Approved application` workflow in `live`
+> mode, with confirmation `APPLY`, an approval record, salary clearance, and a visible
+> self-hosted browser. Running `runner.py` locally or on the daily schedule must not submit.
+
 ## Current Readiness
 
 - Automation build is usable: `python -m pytest -q` passes with 157 tests.
@@ -32,7 +37,8 @@
    - Save the application link back to the Google Sheet row.
 
 5. Decide live-apply posture.
-   - Keep `AUTO_APPLY_LIVE` off until at least 5 manually reviewed packages look correct.
+   - Keep `AUTO_APPLY_LIVE` off for ordinary local and scheduled runs. Use only the protected
+     exact-vacancy workflow for any approved live attempt after at least 5 packages are reviewed.
    - Current queue has no Tier A jobs, so the immediate workflow is draft-review-submit.
 
 ## First 48 Hours

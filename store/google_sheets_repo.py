@@ -194,6 +194,29 @@ class GoogleSheetsRepository:
                     self._sheet_ids[props["title"]] = props["sheetId"]
         for tab, headers in self._headers_by_tab.items():
             first = self._values_get(f"'{tab}'!1:1")
+            current_headers = first[0] if first and first[0] else []
+            if (
+                tab == self.jobs_tab
+                and current_headers[:4] == ["DedupeKey", "Title", "Company", "URL"]
+                and "Score" in current_headers
+                and "ApplicationLink" not in current_headers
+            ):
+                # Legacy Jobs sheets placed Score in E. Insert a real column so every
+                # existing Score..Applied value shifts with its header before rewriting.
+                sheet_id = self._sheet_ids.get(tab)
+                if sheet_id is not None:
+                    self.http("POST", self._url(":batchUpdate"), {"requests": [{
+                        "insertDimension": {
+                            "range": {
+                                "sheetId": sheet_id,
+                                "dimension": "COLUMNS",
+                                "startIndex": 4,
+                                "endIndex": 5,
+                            },
+                            "inheritFromBefore": True,
+                        }
+                    }]})
+                    current_headers.insert(4, "ApplicationLink")
             if not first or not first[0] or len(first[0]) < len(headers):
                 self._values_update(f"'{tab}'!A1", headers)
         self._ready = True

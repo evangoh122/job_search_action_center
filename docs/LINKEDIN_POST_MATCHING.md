@@ -28,12 +28,15 @@ current and what evidence they would need before considering one; it never presu
 
 Run locally after the job tracker has been populated:
 
+Store `APIFY_TOKEN`, `NETWORKING_APPLICANT_PROOF`, and `NETWORKING_RELEVANCE` in the ignored
+`.env` file (or an approved secret manager), then run:
+
 ```powershell
-$env:APIFY_TOKEN = "..."
-$env:NETWORKING_APPLICANT_PROOF = "A specific result, metric/scale, and method"
-$env:NETWORKING_RELEVANCE = "Why the post's stated need connects to that experience"
 python -m linkedin_post_cli --max-jobs 5 --max-posts 5
 ```
+
+Do not assign tokens or personal evidence directly in an interactive shell command: command
+history, transcripts, and process diagnostics may retain them.
 
 Review `data/linkedin_post_matches.md` and verify the post really refers to the tracked vacancy
 before contacting its author. The actor is a third-party community integration, not an official

@@ -16,7 +16,7 @@ The report also lists the ten **Closest cross-board write-ups**, including pairs
 duplicate threshold. This makes the comparison auditable: low similarity indicates materially
 different responsibilities even when titles look alike.
 
-Statuses `queued`, `drafted`, `approved`, `submitted`, `applied`, `interviewing`, `offer`, `rejected`,
+Statuses `queued`, `drafted`, `approved`, `submission_unknown`, `submitted`, `applied`, `interviewing`, `offer`, `rejected`,
 and `closed` block another application action. Keep statuses accurate; the software cannot
 infer every application made outside this repository.
 

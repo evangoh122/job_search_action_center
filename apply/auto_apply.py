@@ -13,7 +13,9 @@ from pathlib import Path
 from apply.ats import ADAPTERS, ApplicationPlan
 from apply.resume_models import ResumeAchievement
 from apply.tailor import tailor
+from config import MINIMUM_MONTHLY_SGD
 from models import Applicant, ApplicationDraft, Job
+from salary import SalaryRange, meets_monthly_sgd_floor
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +35,18 @@ def load_approval_keys(path: str | Path | None) -> set[str]:
     return {str(value) for value in values}
 
 
+def load_salary_override_keys(path: str | Path | None) -> set[str]:
+    """Load explicitly recorded salary-review overrides from an approval file."""
+    if not path:
+        return set()
+    approval_path = Path(path)
+    if not approval_path.exists():
+        return set()
+    data = json.loads(approval_path.read_text(encoding="utf-8"))
+    values = data.get("salary_overrides", []) if isinstance(data, dict) else []
+    return {str(value) for value in values}
+
+
 class AutoApplier:
     """Represent auto applier."""
     def __init__(
@@ -41,6 +55,7 @@ class AutoApplier:
         dry_run: bool = True,
         submitter: Submitter | None = None,
         approved_job_keys: Collection[str] = (),
+        salary_override_job_keys: Collection[str] = (),
         base_summary: str = "",
         draft_sink: DraftSink | None = None,
         achievements: Collection[ResumeAchievement] = (),
@@ -50,6 +65,7 @@ class AutoApplier:
         self.dry_run = dry_run
         self.submitter = submitter
         self.approved_job_keys = set(approved_job_keys)
+        self.salary_override_job_keys = set(salary_override_job_keys)
         self.base_summary = base_summary
         self.draft_sink = draft_sink
         self.achievements = list(achievements)
@@ -67,8 +83,20 @@ class AutoApplier:
             missing.append("resume_path_or_url")
         return missing
 
+    def _salary_is_cleared(self, job: Job) -> bool:
+        """Require a conclusive salary floor match or a recorded per-vacancy override."""
+        if job.id in self.salary_override_job_keys or job.dedupe_key in self.salary_override_job_keys:
+            return True
+        salary = SalaryRange(
+            job.salary_min,
+            job.salary_max,
+            job.salary_currency,
+            job.salary_period,
+        )
+        return meets_monthly_sgd_floor(salary, MINIMUM_MONTHLY_SGD)
+
     def apply(self, job: Job) -> str:
-        """Return unsupported/dry_run/incomplete/approval_required/review_required/submitted/error."""
+        """Prepare or submit one application while enforcing all live-mode safety gates."""
         builder = ADAPTERS.get((job.ats_type or "").casefold())
         if builder is None:
             logger.info("No hosted-form adapter for %s (%s)", job.ats_type, job.title)
@@ -96,9 +124,18 @@ class AutoApplier:
         if self.submitter is None:
             logger.info("Browser submitter not configured for approved job %s", job.title)
             return "review_required"
+        resume_path = Path(self.applicant.resume_path) if self.applicant.resume_path else None
+        if resume_path is None or not resume_path.is_file():
+            logger.warning("A readable local resume file is required for live submission")
+            return "incomplete"
+        if not self._salary_is_cleared(job):
+            logger.warning("Salary review or an explicit per-vacancy override is required")
+            return "salary_review_required"
         try:
             result = self.submitter(job, self.applicant, self.last_plan)
-            return result if result in {"submitted", "review_required", "captcha_required"} else "error"
+            return result if result in {
+                "submitted", "submission_unknown", "review_required", "captcha_required"
+            } else "error"
         except Exception:
             logger.warning("Browser application failed for %s", job.title, exc_info=True)
             return "error"

@@ -1,3 +1,7 @@
+import json
+
+import pytest
+
 from models import Contact, Job, LinkedInPostMatch
 from store.repository import SqliteRepository
 
@@ -53,3 +57,23 @@ def test_linkedin_post_match_roundtrip():
     )
     repo.upsert_linkedin_post_match(match)
     assert repo.list_linkedin_post_matches("j1") == [match]
+
+
+@pytest.mark.parametrize("statuses", [("new", "applied"), ("applied", "new")])
+def test_legacy_key_migration_preserves_strongest_status(tmp_path, statuses):
+    db = tmp_path / "jobs.sqlite"
+    repo = SqliteRepository(str(db))
+    jobs = [
+        _job("job-1", "legacy-one").model_copy(update={"status": statuses[0]}),
+        _job("job-2", "legacy-two").model_copy(update={"status": statuses[1]}),
+    ]
+    with repo.conn:
+        repo.conn.executemany(
+            "INSERT INTO jobs (id, dedupe_key, data) VALUES (?, ?, ?)",
+            [(job.id, job.dedupe_key, json.dumps(job.model_dump(mode="json"))) for job in jobs],
+        )
+    repo.conn.close()
+
+    migrated = SqliteRepository(str(db)).list_jobs()
+    assert len(migrated) == 1
+    assert migrated[0].status == "applied"

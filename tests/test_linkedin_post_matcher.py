@@ -68,6 +68,7 @@ def test_actor_request_is_bounded_and_uses_documented_fields():
     assert matcher.find_matches(_job())
     url, body = calls[0]
     assert "harvestapi~linkedin-post-search" in url
+    assert "token=" not in url
     assert body["maxPosts"] == 7
     assert body["postedLimit"] == "week"
     assert body["scrapeComments"] is False and body["scrapeReactions"] is False

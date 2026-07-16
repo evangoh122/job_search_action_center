@@ -4,17 +4,20 @@ import json
 
 import pytest
 
-from apply.auto_apply import AutoApplier, load_approval_keys
+from apply.auto_apply import AutoApplier, load_approval_keys, load_salary_override_keys
 from models import Applicant, Job
 
 
 @pytest.fixture
-def applicant() -> Applicant:
+def applicant(tmp_path) -> Applicant:
+    resume = tmp_path / "resume.pdf"
+    resume.write_bytes(b"resume")
     return Applicant(
         name="Alice Smith",
         email="alice@example.com",
         phone="+11234567890",
         resume_url="https://example.com/alice.pdf",
+        resume_path=str(resume),
         linkedin_url="https://linkedin.com/in/alicesmith",
     )
 
@@ -23,6 +26,7 @@ def _job(ats: str, url: str) -> Job:
     return Job(
         id="j", source="test", company_canonical="Acme",
         dedupe_key=f"k-{ats}", title="Engineer", url=url, ats_type=ats,
+        salary_min=12000, salary_max=14000, salary_currency="SGD", salary_period="MONTH",
     )
 
 
@@ -111,9 +115,54 @@ def test_submitter_error_is_isolated(applicant):
     assert result == "error"
 
 
+def test_live_submission_requires_existing_local_resume(applicant):
+    applicant.resume_path = "missing-resume.pdf"
+    submitter = RecordingSubmitter()
+    result = AutoApplier(
+        applicant, dry_run=False, submitter=submitter, approved_job_keys={"j"}
+    ).apply(_job("greenhouse", "https://boards.greenhouse.io/acme/jobs/123"))
+    assert result == "incomplete"
+    assert submitter.calls == []
+
+
+def test_unknown_salary_requires_separate_recorded_override(applicant):
+    job = _job("greenhouse", "https://boards.greenhouse.io/acme/jobs/123")
+    job.salary_min = job.salary_max = None
+    submitter = RecordingSubmitter()
+    blocked = AutoApplier(
+        applicant, dry_run=False, submitter=submitter, approved_job_keys={job.id}
+    )
+    assert blocked.apply(job) == "salary_review_required"
+    allowed = AutoApplier(
+        applicant,
+        dry_run=False,
+        submitter=submitter,
+        approved_job_keys={job.id},
+        salary_override_job_keys={job.id},
+    )
+    assert allowed.apply(job) == "submitted"
+
+
+def test_custom_answers_cannot_override_verified_identity(applicant):
+    applicant.answers = {"email": "attacker@example.com", "phone": "000", "Why us?": "Fit"}
+    applier = AutoApplier(applicant)
+    assert applier.apply(_job("greenhouse", "https://boards.greenhouse.io/acme/jobs/123")) == "dry_run"
+    assert applier.last_plan.fields["email"] == applicant.email
+    assert applier.last_plan.fields["phone"] == applicant.phone
+    assert applier.last_plan.fields["Why us?"] == "Fit"
+
+
 def test_load_approval_keys_accepts_object_or_list(tmp_path):
     path = tmp_path / "approvals.json"
     path.write_text(json.dumps({"approved": ["job-1", "key-2"]}), encoding="utf-8")
     assert load_approval_keys(path) == {"job-1", "key-2"}
     path.write_text(json.dumps(["job-3"]), encoding="utf-8")
     assert load_approval_keys(path) == {"job-3"}
+
+
+def test_load_salary_overrides_only_from_named_field(tmp_path):
+    path = tmp_path / "approvals.json"
+    path.write_text(json.dumps({
+        "approved": ["job-1"], "salary_overrides": ["job-2"]
+    }), encoding="utf-8")
+    assert load_salary_override_keys(path) == {"job-2"}

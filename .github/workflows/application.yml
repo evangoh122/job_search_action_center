@@ -19,6 +19,11 @@ on:
         description: Enter APPLY for live mode
         required: false
         type: string
+      salary_override:
+        description: Confirm an explicit salary review when published pay is unknown/unparseable
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -46,7 +51,9 @@ jobs:
           python -m pytest -q
 
       - name: Register approval in the ephemeral preview workspace
-        run: python -m application_cli approve "${{ inputs.job_key }}"
+        env:
+          JOB_KEY: ${{ inputs.job_key }}
+        run: python -m application_cli approve "$JOB_KEY"
 
       - name: Run application pipeline in forced dry-run mode
         env:
@@ -89,11 +96,21 @@ jobs:
 
       - name: Approve only the dispatched job key
         shell: powershell
-        run: python -m application_cli approve "${{ inputs.job_key }}"
+        env:
+          JOB_KEY: ${{ inputs.job_key }}
+        run: python -m application_cli approve "$env:JOB_KEY"
+
+      - name: Record explicit salary review for the dispatched job key
+        if: inputs.salary_override == true
+        shell: powershell
+        env:
+          JOB_KEY: ${{ inputs.job_key }}
+        run: python -m application_cli salary-override "$env:JOB_KEY"
 
       - name: Submit approved application through visible browser
         shell: powershell
         env:
+          JOB_KEY: ${{ inputs.job_key }}
           AUTO_APPLY_LIVE: "true"
           AUTO_APPLY_BROWSER: "true"
           AUTO_APPLY_HEADLESS: "false"
@@ -117,4 +134,4 @@ jobs:
           RESUME_SUMMARY: ${{ secrets.RESUME_SUMMARY }}
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
           SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
-        run: python -m application_cli apply "${{ inputs.job_key }}"
+        run: python -m application_cli apply "$env:JOB_KEY"

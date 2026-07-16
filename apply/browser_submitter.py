@@ -163,4 +163,4 @@ class PlaywrightSubmitter:
             submitted = confirmation.count() > 0
             self._screenshot(page, job)
             context.close()
-            return "submitted" if submitted else "review_required"
+            return "submitted" if submitted else "submission_unknown"

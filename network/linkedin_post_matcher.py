@@ -21,7 +21,7 @@ from network.email_finder import _classify
 logger = logging.getLogger(__name__)
 
 _ACTOR = "harvestapi~linkedin-post-search"
-_RUN_URL = "https://api.apify.com/v2/acts/{actor}/run-sync-get-dataset-items?token={token}"
+_RUN_URL = "https://api.apify.com/v2/acts/{actor}/run-sync-get-dataset-items"
 _JOB_ID = re.compile(r"(?:/jobs/view/(?:[^/?#]*-)?|currentJobId=)(\d{6,})", re.I)
 _HIRING = re.compile(r"\b(hiring|vacancy|opening|join (?:my|our) team|apply|role)\b", re.I)
 _REFERRAL = re.compile(
@@ -149,7 +149,12 @@ class LinkedInPostMatcher:
 
     def _default_post(self, url: str, body: dict) -> list:
         """Default post."""
-        response = httpx.post(url, json=body, timeout=180)
+        response = httpx.post(
+            url,
+            headers={"Authorization": f"Bearer {self.token}"},
+            json=body,
+            timeout=180,
+        )
         response.raise_for_status()
         value = response.json()
         return value if isinstance(value, list) else value.get("items") or value.get("data") or []
@@ -167,7 +172,7 @@ class LinkedInPostMatcher:
 
     def find_matches(self, job: Job) -> list[LinkedInPostMatch]:
         """Find matches."""
-        url = _RUN_URL.format(actor=_ACTOR, token=self.token)
+        url = _RUN_URL.format(actor=_ACTOR)
         body = {
             "searchQueries": self.queries(job), "postedLimit": self.posted_limit,
             "sortBy": "date", "maxPosts": self.max_posts,

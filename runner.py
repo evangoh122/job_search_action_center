@@ -123,7 +123,7 @@ def normalize(raw: RawJob) -> Job:
     company = raw.company.strip()
     title = raw.title.strip()
     url = raw.url.strip()
-    dedupe_key = job_identity_key(company, title)
+    dedupe_key = job_identity_key(company, title, url=url)
     return Job(
         id=str(uuid.uuid4()),
         source=raw.source,
@@ -201,7 +201,7 @@ def _run_apply_a(job, repo, auto_applier, day) -> str:
         logger.warning("Daily auto-apply cap reached (%s)", DAILY_CAPS["auto_apply"])
         return "capped"
     result = auto_applier.apply(job)
-    if result in ("submitted", "dry_run"):
+    if result in ("submitted", "submission_unknown", "dry_run"):
         repo.incr_action("auto_apply", day)
     return result
 
@@ -322,23 +322,26 @@ def run(
         )
         status = job.status.casefold()
         terminal_status = status in {
-            "submitted", "applied", "interviewing", "offer", "rejected", "closed",
+            "submission_unknown", "submitted", "applied", "interviewing", "offer",
+            "rejected", "closed",
         }
         pending_status = status in {"queued", "drafted", "approved"}
         application_already_handled = terminal_status or (pending_status and not approved_live)
 
         if not duplicate_in_run and not application_already_handled and job.tier == "A":
             counts["tier_a"] += 1
-            _track_application_package(
-                tailor(job, base_summary, applicant_name, achievements=achievements), tracker
-            )
             result = _run_apply_a(job, repo, auto_applier, day)
+            attempted_draft = getattr(auto_applier, "last_draft", None)
+            if attempted_draft is not None:
+                _track_application_package(attempted_draft, tracker)
             if result == "submitted":
                 job.status = "applied"
+            elif result == "submission_unknown":
+                job.status = "submission_unknown"
             # Top-priority bank role on a non-submittable ATS (LinkedIn/MCF): still draft it.
             if result in {
                 "unsupported", "disabled", "incomplete", "approval_required",
-                "review_required", "captcha_required", "error",
+                "review_required", "captcha_required", "salary_review_required", "error",
             }:
                 drafted = 0
                 if status == "new":
@@ -352,13 +355,15 @@ def run(
         elif not duplicate_in_run and not application_already_handled and job.tier == "B":
             # Tier B remains draft-only unless this exact job has explicit approval and
             # live mode is enabled. Approval never broadens to another vacancy.
-            if approved_live:
-                _track_application_package(
-                    tailor(job, base_summary, applicant_name, achievements=achievements), tracker
-                )
             result = _run_apply_a(job, repo, auto_applier, day) if approved_live else "draft"
+            attempted_draft = getattr(auto_applier, "last_draft", None)
+            if approved_live and attempted_draft is not None:
+                _track_application_package(attempted_draft, tracker)
             if result == "submitted":
                 job.status = "applied"
+                repo.upsert_job(job)
+            elif result == "submission_unknown":
+                job.status = "submission_unknown"
                 repo.upsert_job(job)
             else:
                 drafted = 0
@@ -520,7 +525,7 @@ def _build_auto_applier_from_env(achievements: list[ResumeAchievement] | None = 
     import os
     from pathlib import Path
 
-    from apply.auto_apply import AutoApplier, load_approval_keys
+    from apply.auto_apply import AutoApplier, load_approval_keys, load_salary_override_keys
     from models import Applicant
 
     answers_raw = os.environ.get("APPLICATION_ANSWERS_JSON", "")
@@ -560,11 +565,13 @@ def _build_auto_applier_from_env(achievements: list[ResumeAchievement] | None = 
             headless=os.environ.get("AUTO_APPLY_HEADLESS", "").lower() == "true",
             submit=True,
         )
+    approvals_file = os.environ.get("AUTO_APPLY_APPROVALS_FILE")
     return AutoApplier(
         applicant,
         dry_run=os.environ.get("AUTO_APPLY_LIVE", "").lower() != "true",
         submitter=browser_submitter,
-        approved_job_keys=load_approval_keys(os.environ.get("AUTO_APPLY_APPROVALS_FILE")),
+        approved_job_keys=load_approval_keys(approvals_file),
+        salary_override_job_keys=load_salary_override_keys(approvals_file),
         base_summary=os.environ.get("RESUME_SUMMARY", ""),
         draft_sink=ApplicationDraftQueue(
             os.environ.get("APPLICATION_DRAFTS_PATH", "data/application_drafts.jsonl")

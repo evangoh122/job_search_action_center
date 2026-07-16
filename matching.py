@@ -1,14 +1,16 @@
 """Conservative cross-board identity matching for job listings.
 
-Job-board URLs are deliberately excluded from the identity key: LinkedIn,
-MyCareersFuture, and eFinancialCareers often advertise the same vacancy with
-different URLs. The key uses normalized company and title text instead.
+Identity keys include normalized company/title text plus stable URL or requisition
+evidence, preventing simultaneous same-title vacancies from being collapsed. Cross-board
+duplicates with different URLs require strong full-description evidence before merging.
 """
 from __future__ import annotations
 
 import re
 import unicodedata
 from dataclasses import dataclass
+from hashlib import sha256
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from models import Job
 from salary import SalaryRange, aggregate_salary
@@ -45,9 +47,50 @@ def normalize_title(value: str) -> str:
     return " ".join(_words(value))
 
 
-def job_identity_key(company: str, title: str) -> str:
-    """Return a stable, readable cross-source vacancy key."""
-    return f"{normalize_company(company)}|{normalize_title(title)}"
+def _canonical_vacancy_url(value: str) -> str:
+    """Normalize a vacancy URL while discarding fragments and tracking parameters."""
+    if not value:
+        return ""
+    parts = urlsplit(value.strip())
+    query = urlencode([
+        (key, val)
+        for key, val in parse_qsl(parts.query, keep_blank_values=True)
+        if not key.casefold().startswith("utm_")
+    ])
+    return urlunsplit((parts.scheme.casefold(), parts.netloc.casefold(),
+                       parts.path.rstrip("/"), query, ""))
+
+
+def job_identity_key(
+    company: str,
+    title: str,
+    *,
+    vacancy_id: str = "",
+    url: str = "",
+) -> str:
+    """Return a key that separates same-title requisitions using stable vacancy evidence."""
+    base = f"{normalize_company(company)}|{normalize_title(title)}"
+    evidence = vacancy_id.strip() or _canonical_vacancy_url(url)
+    if not evidence:
+        return base
+    return f"{base}|{sha256(evidence.encode('utf-8')).hexdigest()[:12]}"
+
+
+_STATUS_PRECEDENCE = {
+    "new": 0,
+    "queued": 1,
+    "drafted": 2,
+    "approved": 3,
+    "review_required": 4,
+    "captcha_required": 4,
+    "submission_unknown": 5,
+    "submitted": 6,
+    "applied": 6,
+    "interviewing": 7,
+    "offer": 8,
+    "rejected": 8,
+    "closed": 8,
+}
 
 
 def merge_jobs(existing: Job, incoming: Job) -> Job:
@@ -62,6 +105,11 @@ def merge_jobs(existing: Job, incoming: Job) -> Job:
     urls.update(incoming.source_urls)
     urls.setdefault(incoming.source, incoming.url)
     merged.source_urls = urls
+
+    if _STATUS_PRECEDENCE.get(incoming.status.casefold(), 0) > _STATUS_PRECEDENCE.get(
+        existing.status.casefold(), 0
+    ):
+        merged.status = incoming.status
 
     if len(incoming.description or "") > len(existing.description or ""):
         merged.description = incoming.description
@@ -101,7 +149,11 @@ def find_duplicate_job(incoming: Job, jobs: list[Job]) -> Job | None:
         return None
     candidates = [job for job in jobs if not set(job.sources or [job.source])
                   & set(incoming.sources or [incoming.source])]
-    matches = rank_description_matches([*candidates, incoming], limit=len(candidates))
+    matches = find_description_matches(
+        [*candidates, incoming],
+        min_description_similarity=0.0,
+        min_confidence=0.0,
+    )
     for match in matches:
         if incoming not in (match.left, match.right):
             continue
@@ -133,12 +185,12 @@ def _token_similarity(left: str, right: str) -> float:
 def _description_core(value: str) -> str:
     """Remove common trailing employer/EEO boilerplate before comparison."""
     text = re.sub(r"\s+", " ", unicodedata.normalize("NFKC", value or "")).strip()
-    boilerplate = re.search(
+    boilerplate = next((match for match in re.finditer(
         r"\b(about (?:us|the company)|equal opportunity|diversity and inclusion|"
         r"privacy notice|personal data protection|how to apply)\b",
         text,
         flags=re.IGNORECASE,
-    )
+    ) if match.start() >= 200), None)
     return (text[:boilerplate.start()] if boilerplate else text).strip()
 
 

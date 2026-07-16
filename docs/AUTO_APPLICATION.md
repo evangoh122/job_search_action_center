@@ -56,6 +56,7 @@ unmatched questions remain for review.
 ```powershell
 python -m application_cli eligible
 python -m application_cli approve "<dedupe-key-from-the-list>"
+python -m application_cli salary-override "<dedupe-key>"  # only after explicit salary review
 python -m application_cli list
 python -m application_cli revoke "<dedupe-key>"
 ```
@@ -63,6 +64,11 @@ python -m application_cli revoke "<dedupe-key>"
 The default approval file is ignored `data/application_approvals.json`.
 `eligible` includes new, queued, drafted, and approved Tier-A/B roles. Explicit approval can
 promote an existing draft to browser submission; terminal roles are never resubmitted.
+An approval does not bypass the salary gate. Live submission additionally requires a conclusive
+SGD monthly-equivalent range reaching S$12,000, or a separately recorded per-vacancy
+`salary-override`. Unknown salary is still discoverable and draftable, but not auto-submittable.
+For the protected workflow, set its `salary_override` checkbox only after completing that review;
+the workflow records the override against the dispatched job key before browser execution.
 
 ## Preview first
 
@@ -89,9 +95,12 @@ AUTO_APPLY_HEADLESS=false
 AUTO_APPLY_BROWSER_PROFILE=data/browser_profile
 ```
 
-Then run `python -m runner` interactively. Start with a visible browser (`HEADLESS=false`).
+Prefer the protected `Approved application` workflow for live execution. If validating on the
+dedicated self-hosted runner, keep the browser visible (`HEADLESS=false`).
 The browser fills standard fields, custom label-based answers, and the local resume. It clicks
 Submit only for an approved job and marks it applied only when a confirmation message is found.
+If the submit click succeeds but no confirmation is recognized, the job is stored as
+`submission_unknown` and is never retried automatically.
 
 ## Platform expectations
 
@@ -154,11 +163,12 @@ LinkedIn messages or coffee-chat requests. Store a private JSON value based on
 Each target must include a real company signal, a narrow question, and a measurable applicant
 proof point; missing context fails generation instead of producing a generic message.
 
-Generate the packet locally with:
+Create an ignored working copy, replace its placeholders, and generate the packet locally:
 
 ```powershell
-python -m networking_cli --targets config/networking_targets.example.json
+Copy-Item config\networking_targets.example.json data\networking_targets.json
+python -m networking_cli --targets data/networking_targets.json
 ```
 
-Replace the example placeholders first, then review every draft in
+Never place personal proof or contact details in the committed example file. Review every draft in
 `data/daily_networking_drafts.md` before sending it manually.

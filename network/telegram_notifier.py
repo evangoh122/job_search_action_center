@@ -26,19 +26,24 @@ _MAX = 3800  # Telegram caps a message at 4096 chars; stay under with headroom
 
 
 def _default_http(url: str, body: dict) -> dict:
+    """Post one Telegram Bot API request and decode the response."""
     resp = httpx.post(url, json=body, timeout=30)
     resp.raise_for_status()
     return resp.json()
 
 
 class TelegramNotifier:
+    """Send bounded HTML digests of newly discovered jobs to Telegram."""
+
     def __init__(self, token: str, chat_id: str, http: HttpFn | None = None) -> None:
+        """Configure the bot token, destination chat, and HTTP transport."""
         self.token = token
         self.chat_id = chat_id
         self.http = http or _default_http
 
     @staticmethod
     def _line(job: Job) -> str:
+        """Render one escaped job line for Telegram HTML mode."""
         score = f"{job.score:.0f}" if job.score is not None else "—"
         title = html.escape(job.title)
         company = html.escape(job.company_canonical)
@@ -48,6 +53,7 @@ class TelegramNotifier:
         return f"• {link}\n  {company} · score {score} · {job.source}"
 
     def _send(self, text: str) -> None:
+        """Send one already-bounded Telegram message chunk."""
         self.http(_API.format(token=self.token), {
             "chat_id": self.chat_id,
             "text": text,

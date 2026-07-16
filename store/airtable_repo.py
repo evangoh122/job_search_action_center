@@ -35,6 +35,8 @@ def _drop_empty(fields: dict) -> dict:
 
 
 class AirtableRepository:
+    """Persist jobs, contacts, and outreach drafts in Airtable tables."""
+
     def __init__(
         self,
         token: str,
@@ -44,6 +46,7 @@ class AirtableRepository:
         outreach_table: str = "Outreach",
         http: HttpFn | None = None,
     ) -> None:
+        """Configure Airtable credentials, table names, and HTTP transport."""
         self.token = token
         self.base_id = base_id
         self.jobs_table = jobs_table
@@ -52,6 +55,7 @@ class AirtableRepository:
         self.http = http or self._default_http
 
     def _default_http(self, method: str, url: str, body: dict | None) -> dict:
+        """Perform an authenticated Airtable JSON request."""
         resp = httpx.request(
             method, url,
             headers={"Authorization": f"Bearer {self.token}", "Content-Type": "application/json"},
@@ -62,33 +66,40 @@ class AirtableRepository:
 
     # ── low-level helpers ────────────────────────────────────────────────────
     def _table_url(self, table: str) -> str:
+        """Return the encoded Airtable endpoint for a table."""
         return f"{_BASE}/{self.base_id}/{quote(table)}"
 
     @staticmethod
     def _eq(field: str, value: str) -> str:
+        """Build a simple escaped Airtable equality formula."""
         safe = str(value).replace('"', " ")  # avoid breaking the formula string
         return f'{{{field}}}="{safe}"'
 
     def _find(self, table: str, formula: str) -> str | None:
+        """Find the first record identifier matching a formula."""
         url = f"{self._table_url(table)}?filterByFormula={quote(formula)}&maxRecords=1"
         records = self.http("GET", url, None).get("records", [])
         return records[0]["id"] if records else None
 
     def _create(self, table: str, fields: dict) -> str:
+        """Create an Airtable record and return its identifier."""
         res = self.http("POST", self._table_url(table), {"records": [{"fields": fields}]})
         return res["records"][0]["id"]
 
     def _update(self, table: str, rec_id: str, fields: dict) -> str:
+        """Update an Airtable record and return its identifier."""
         self.http("PATCH", self._table_url(table),
                   {"records": [{"id": rec_id, "fields": fields}]})
         return rec_id
 
     def _upsert(self, table: str, formula: str, fields: dict) -> str:
+        """Create or update a record selected by an Airtable formula."""
         existing = self._find(table, formula)
         return self._update(table, existing, fields) if existing else self._create(table, fields)
 
     # ── Jobs ─────────────────────────────────────────────────────────────────
     def _job_fields(self, job: Job) -> dict:
+        """Map a job to non-empty Airtable fields."""
         fields = {
             "Title": job.title,
             "Company": job.company_canonical,
@@ -106,11 +117,13 @@ class AirtableRepository:
         return _drop_empty(fields)
 
     def upsert_job(self, job: Job) -> str:
+        """Upsert a job by its stable deduplication key."""
         return self._upsert(self.jobs_table, self._eq("DedupeKey", job.dedupe_key),
                             self._job_fields(job))
 
     # ── Contacts ───────────────────────────────────────────────────────────────
     def _contact_fields(self, c: Contact) -> dict:
+        """Map a contact to non-empty Airtable fields."""
         fields = {
             "Name": c.name,
             "Email": c.email,
@@ -124,6 +137,7 @@ class AirtableRepository:
         return _drop_empty(fields)
 
     def upsert_contact(self, c: Contact) -> str:
+        """Upsert a contact using email, LinkedIn URL, or name."""
         # Dedupe by the strongest identifier available: email > linkedin > name.
         if c.email:
             formula = self._eq("Email", c.email)

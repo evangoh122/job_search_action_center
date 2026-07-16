@@ -94,11 +94,19 @@ the user's password manager, and the user completes initial sign-in, MFA, and ac
 portal's terms in the visible browser. The ignored persistent browser profile can retain the
 resulting authenticated sessions.
 
+Treat `AUTO_APPLY_BROWSER_PROFILE` as a credential. Restrict its filesystem permissions to the
+runner account, store it only on an encrypted local volume, and never upload it as an artifact,
+include it in backups, or use it on a shared runner. If the runner is lost or another user may
+have accessed the directory, revoke the saved portal sessions and delete the profile before
+creating a new one.
+
 ## Form-capture workflow
 
 1. Select one exact, active vacancy at the bank.
-2. Confirm that the role satisfies the S$12,000 monthly salary floor when a conclusive SGD range
-   is published. Unknown salaries remain visible for review.
+2. Confirm that a conclusive normalized SGD range reaches the S$12,000 monthly floor. Unknown or
+   unparseable salaries remain visible for review but cannot proceed to live execution unless the
+   applicant records an explicit override for that exact vacancy with
+   `python -m application_cli salary-override "<job-key>"`.
 3. Open the employer's official application portal in a visible browser.
 4. The applicant completes account creation, password entry, MFA, CAPTCHA, and legal consent.
 5. Capture the common profile sections and all visible requisition-specific question labels.
@@ -118,8 +126,11 @@ self-hosted Windows runner and requires all of the following:
 - confirmation value `APPLY`;
 - the exact job dedupe key;
 - an approval entry for that exact vacancy;
+- a conclusive normalized salary meeting the S$12,000 monthly floor, or a separately recorded
+  salary-review override for that exact vacancy;
 - a visible authenticated browser session.
 
 GitHub-hosted runners must not receive reusable portal passwords or browser profiles. CAPTCHA,
-MFA, missing required questions, or an unconfirmed success page must stop the workflow for human
-review and must not mark the vacancy as applied.
+MFA or missing required questions must stop the workflow for human review. An unconfirmed
+post-submit page must be stored as `submission_unknown`, must not be marked applied, and must
+never be retried automatically.

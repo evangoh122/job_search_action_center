@@ -210,3 +210,16 @@ def test_resume_bullet_preserves_common_technical_acronym_casing():
     variant = build_resume_variant(job, [achievement])
 
     assert variant.bullets[0].startswith("AI: ")
+
+
+def test_disclosure_constrained_evidence_is_not_selected():
+    achievement = ResumeAchievement(
+        keyword="machine learning",
+        result="Improved a confidential model",
+        metric="private metric",
+        method="using Python",
+        disclosure_constraints="Do not disclose externally",
+    )
+    variant = build_resume_variant(_job(), [achievement])
+    assert variant.bullets == []
+    assert variant.selected_evidence == []

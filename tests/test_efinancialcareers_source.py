@@ -108,6 +108,17 @@ def test_location_filter() -> None:
     assert source.fetch() == []
 
 
+def test_location_filter_rejects_missing_location() -> None:
+    payload = {
+        "@type": "JobPosting", "title": "Data Scientist",
+        "hiringOrganization": {"name": "Global Bank"},
+        "url": "/jobs-Data-Scientist.id6", "datePosted": _RECENT,
+    }
+    html = f'<script type="application/ld+json">{json.dumps(payload)}</script>'
+    source = EFinancialCareersSource(["data"], location="Singapore", http_get=lambda url: html)
+    assert source.fetch() == []
+
+
 def test_failed_fetch_is_skipped() -> None:
     def boom(url: str) -> str:
         raise RuntimeError("blocked")

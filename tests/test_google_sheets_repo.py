@@ -192,6 +192,33 @@ def test_ensure_creates_missing_tabs_recolours_and_writes_headers():
     assert len(header_puts) >= 4
 
 
+def test_ensure_inserts_application_link_column_before_rewriting_legacy_headers():
+    calls: list[tuple[str, str, dict | None]] = []
+    legacy = ["DedupeKey", "Title", "Company", "URL", "Score", "Tier", "Status",
+              "Source", "Posted", "Description", "Aging", "Applied"]
+
+    def http(method: str, url: str, body: dict | None) -> dict:
+        calls.append((method, url, body))
+        if method == "GET" and "/values/" not in url:
+            return {"sheets": [{"properties": {"title": "Jobs", "sheetId": 7}}]}
+        if method == "GET" and "Jobs" in url:
+            return {"values": [legacy.copy()]}
+        if method == "GET":
+            return {"values": []}
+        return {}
+
+    GoogleSheetsRepository("sheet123", token="tok", http=http)._ensure_ready()
+
+    insert = next(
+        request["insertDimension"]
+        for call in calls if call[0] == "POST" and call[2]
+        for request in call[2].get("requests", []) if "insertDimension" in request
+    )
+    assert insert["range"] == {
+        "sheetId": 7, "dimension": "COLUMNS", "startIndex": 4, "endIndex": 5,
+    }
+
+
 def test_upsert_networking_keyed_by_email():
     http, calls = _fake([])
     key = _repo(http).upsert_networking(

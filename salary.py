@@ -135,3 +135,17 @@ def is_below_monthly_sgd_floor(salary: SalaryRange, floor: float) -> bool:
     else:
         return False
     return monthly_maximum < floor
+
+
+def meets_monthly_sgd_floor(salary: SalaryRange, floor: float) -> bool:
+    """Return whether a conclusive SGD monthly-equivalent maximum meets the floor."""
+    if salary.currency.strip().upper() != "SGD" or salary.maximum is None:
+        return False
+    period = salary.period.strip().upper()
+    if period == "MONTH":
+        monthly_maximum = salary.maximum
+    elif period == "YEAR":
+        monthly_maximum = salary.maximum / 12
+    else:
+        return False
+    return monthly_maximum >= floor

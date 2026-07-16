@@ -40,7 +40,9 @@ def _hosted_form_url(job: Job) -> str:
 def hosted_application_plan(job: Job, applicant: Applicant) -> ApplicationPlan:
     """Hosted application plan."""
     first, last = _split_name(applicant.name)
+    # Custom answers are loaded first so they can never replace verified identity fields.
     fields = {
+        **applicant.answers,
         "first_name": first,
         "last_name": last,
         "name": applicant.name,
@@ -54,7 +56,6 @@ def hosted_application_plan(job: Job, applicant: Applicant) -> ApplicationPlan:
         "sponsorship_required": applicant.sponsorship_required,
         "notice_period": applicant.notice_period,
         "salary_expectation": applicant.salary_expectation,
-        **applicant.answers,
     }
     return ApplicationPlan(
         provider=(job.ats_type or urlparse(job.url).netloc or "hosted_form").casefold(),

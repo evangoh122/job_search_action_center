@@ -106,7 +106,7 @@ class SqliteRepository(Repository):
         changed = False
         for row in rows:
             job = Job.model_validate(json.loads(row["data"]))
-            key = job_identity_key(job.company_canonical, job.title)
+            key = job_identity_key(job.company_canonical, job.title, url=job.url)
             changed = changed or key != job.dedupe_key or key in grouped
             job.dedupe_key = key
             job.sources = job.sources or [job.source]

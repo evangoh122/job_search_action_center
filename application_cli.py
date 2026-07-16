@@ -6,15 +6,23 @@ import json
 import os
 from pathlib import Path
 
-from apply.auto_apply import load_approval_keys
+from apply.auto_apply import load_approval_keys, load_salary_override_keys
 from store.repository import SqliteRepository
 
 
-def _write_approvals(path: Path, approvals: set[str]) -> None:
-    """Write approvals."""
+def _write_approvals(
+    path: Path, approvals: set[str], salary_overrides: set[str]
+) -> None:
+    """Write application approvals and separate salary-review overrides."""
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
-        json.dumps({"approved": sorted(approvals)}, indent=2) + "\n",
+        json.dumps(
+            {
+                "approved": sorted(approvals),
+                "salary_overrides": sorted(salary_overrides),
+            },
+            indent=2,
+        ) + "\n",
         encoding="utf-8",
     )
 
@@ -33,6 +41,15 @@ def _parser() -> argparse.ArgumentParser:
     approve.add_argument("key")
     revoke = sub.add_parser("revoke", help="Remove a job approval")
     revoke.add_argument("key")
+    salary_override = sub.add_parser(
+        "salary-override",
+        help="Record explicit salary review for one job with unknown/unparseable pay",
+    )
+    salary_override.add_argument("key")
+    salary_revoke = sub.add_parser(
+        "salary-override-revoke", help="Remove a recorded salary override"
+    )
+    salary_revoke.add_argument("key")
     apply = sub.add_parser("apply", help="Run only one existing tracker job through the applier")
     apply.add_argument("key")
     sub.add_parser("list", help="List current approval keys")
@@ -44,15 +61,26 @@ def main() -> None:
     args = _parser().parse_args()
     path = Path(args.approvals)
     approvals = load_approval_keys(path)
+    salary_overrides = load_salary_override_keys(path)
     if args.command == "approve":
         approvals.add(args.key)
-        _write_approvals(path, approvals)
+        _write_approvals(path, approvals, salary_overrides)
         print(f"Approved {args.key}")
         return
     if args.command == "revoke":
         approvals.discard(args.key)
-        _write_approvals(path, approvals)
+        _write_approvals(path, approvals, salary_overrides)
         print(f"Revoked {args.key}")
+        return
+    if args.command == "salary-override":
+        salary_overrides.add(args.key)
+        _write_approvals(path, approvals, salary_overrides)
+        print(f"Recorded salary override for {args.key}")
+        return
+    if args.command == "salary-override-revoke":
+        salary_overrides.discard(args.key)
+        _write_approvals(path, approvals, salary_overrides)
+        print(f"Revoked salary override for {args.key}")
         return
     if args.command == "list":
         for key in sorted(approvals):
@@ -77,8 +105,11 @@ def main() -> None:
         if result == "submitted":
             job.status = "applied"
             repo.upsert_job(job)
+        elif result == "submission_unknown":
+            job.status = "submission_unknown"
+            repo.upsert_job(job)
         print(f"{result}\t{job.company_canonical}\t{job.title}")
-        if result in {"error", "incomplete", "unsupported"}:
+        if result in {"error", "incomplete", "unsupported", "salary_review_required"}:
             raise SystemExit(1)
         return
 
@@ -86,7 +117,8 @@ def main() -> None:
         job for job in repo.list_jobs()
         if job.tier in {"A", "B"}
         and job.status.casefold() not in {
-            "submitted", "applied", "interviewing", "offer", "rejected", "closed"
+            "submission_unknown", "submitted", "applied", "interviewing", "offer",
+            "rejected", "closed"
         }
     ]
     for job in sorted(eligible, key=lambda item: item.score or 0, reverse=True):
