@@ -34,6 +34,14 @@ DEFAULT_BANK_TENANTS: list[dict[str, str]] = [
     {"company": "Citi", "host": "citi.wd5.myworkdayjobs.com", "tenant": "citi", "site": "2"},
     {"company": "Deutsche Bank", "host": "db.wd3.myworkdayjobs.com", "tenant": "db", "site": "DBWebsite"},
     {"company": "Morgan Stanley", "host": "ms.wd5.myworkdayjobs.com", "tenant": "ms", "site": "External"},
+    {"company": "DBS", "host": "dbs.wd3.myworkdayjobs.com", "tenant": "dbs", "site": "DBS_Careers"},
+    {"company": "UOB", "host": "uobgroup.wd3.myworkdayjobs.com", "tenant": "uobgroup", "site": "UOBExternal"},
+    {"company": "MUFG", "host": "mufgub.wd3.myworkdayjobs.com", "tenant": "mufgub", "site": "MUFG-Careers"},
+    {"company": "Mizuho", "host": "mizuhogroup.wd102.myworkdayjobs.com", "tenant": "mizuhogroup", "site": "External"},
+    {"company": "Wells Fargo", "host": "wf.wd1.myworkdayjobs.com", "tenant": "wf", "site": "WellsFargoJobs"},
+    {"company": "State Street", "host": "statestreet.wd1.myworkdayjobs.com", "tenant": "statestreet", "site": "Global"},
+    {"company": "Northern Trust", "host": "ntrs.wd1.myworkdayjobs.com", "tenant": "ntrs", "site": "northerntrust"},
+    {"company": "BlackRock", "host": "blackrock.wd1.myworkdayjobs.com", "tenant": "blackrock", "site": "BlackRock_Professional"},
 ]
 
 _DEFAULT_SEARCH_TERMS = ["data", "analytics", "machine learning", "artificial intelligence"]

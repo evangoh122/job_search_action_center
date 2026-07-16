@@ -118,3 +118,9 @@ def test_tech_companies_are_targeted():
     assert target_priority("Samsung Electronics") == 1
     assert target_priority("Airwallex Singapore") == 2
     assert target_priority("Cloudflare") == 2
+
+
+def test_additional_workday_financial_employers_are_targeted():
+    assert target_priority("Wells Fargo Singapore") == 1
+    assert target_priority("State Street Singapore") == 2
+    assert target_priority("Northern Trust Singapore") == 2

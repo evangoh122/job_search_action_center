@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from sources.workday import WorkdaySource
+from sources.workday import DEFAULT_BANK_TENANTS, WorkdaySource
 
 
 def _fake():
@@ -74,3 +74,13 @@ def test_failed_tenant_is_skipped():
     src = WorkdaySource(tenants=[{"company": "X", "host": "h", "tenant": "t", "site": "s"}],
                         search_terms=["data"], http_post=boom, http_get=lambda u: {})
     assert src.fetch() == []
+
+
+def test_default_tenants_cover_verified_singapore_workday_financial_employers():
+    expected = {
+        "Citi", "Deutsche Bank", "Morgan Stanley", "DBS", "UOB", "MUFG",
+        "Mizuho", "Wells Fargo", "State Street", "Northern Trust", "BlackRock",
+    }
+    companies = {tenant["company"] for tenant in DEFAULT_BANK_TENANTS}
+    assert companies == expected
+    assert len({tenant["host"] for tenant in DEFAULT_BANK_TENANTS}) == len(expected)

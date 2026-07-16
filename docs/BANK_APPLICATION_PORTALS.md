@@ -13,6 +13,14 @@ submission. Every live submission still requires an exact vacancy approval and f
 | DBS | Workday | `dbs.wd3.myworkdayjobs.com` | Multi-step Workday flow with a separate DBS candidate account. |
 | UOB | Workday | `uobgroup.wd3.myworkdayjobs.com` | Multi-step Workday flow with a separate UOB candidate account. |
 | OCBC | Oracle Taleo | `ocbc.taleo.net` | Separate Taleo adapter and candidate account are required. |
+| Deutsche Bank | Workday | `db.wd3.myworkdayjobs.com` | Workday account and job-specific questions. |
+| Morgan Stanley | Workday | `ms.wd5.myworkdayjobs.com` | Workday account and job-specific questions. |
+| MUFG | Workday | `mufgub.wd3.myworkdayjobs.com` | Workday account; professional and early-career sites are separate. |
+| Mizuho | Workday | `mizuhogroup.wd102.myworkdayjobs.com` | Workday account for the Mizuho Group external site. |
+| Wells Fargo | Workday | `wf.wd1.myworkdayjobs.com` | Workday account and job-specific questions. |
+| State Street | Workday | `statestreet.wd1.myworkdayjobs.com` | Workday account and job-specific questions. |
+| Northern Trust | Workday | `ntrs.wd1.myworkdayjobs.com` | Workday account and job-specific questions. |
+| BlackRock | Workday | `blackrock.wd1.myworkdayjobs.com` | Financial-services target using a Workday professional-careers site. |
 
 Candidate accounts are not shared between employers, even when both employers use Workday.
 Passwords, MFA codes, recovery codes, CAPTCHA responses, and legal consent decisions must not
@@ -60,6 +68,14 @@ JPMC_LOGIN_EMAIL=
 DBS_LOGIN_EMAIL=
 UOB_LOGIN_EMAIL=
 OCBC_LOGIN_EMAIL=
+DEUTSCHE_BANK_LOGIN_EMAIL=
+MORGAN_STANLEY_LOGIN_EMAIL=
+MUFG_LOGIN_EMAIL=
+MIZUHO_LOGIN_EMAIL=
+WELLS_FARGO_LOGIN_EMAIL=
+STATE_STREET_LOGIN_EMAIL=
+NORTHERN_TRUST_LOGIN_EMAIL=
+BLACKROCK_LOGIN_EMAIL=
 
 AUTO_APPLY_LIVE=false
 AUTO_APPLY_BROWSER=false
@@ -102,4 +118,3 @@ self-hosted Windows runner and requires all of the following:
 GitHub-hosted runners must not receive reusable portal passwords or browser profiles. CAPTCHA,
 MFA, missing required questions, or an unconfirmed success page must stop the workflow for human
 review and must not mark the vacancy as applied.
-

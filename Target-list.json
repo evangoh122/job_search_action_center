@@ -34,7 +34,8 @@
           {"name": "Deutsche Bank", "match_threshold": 82},
           {"name": "HSBC", "match_threshold": 82},
           {"name": "Standard Chartered", "match_threshold": 82},
-          {"name": "BNP Paribas", "match_threshold": 82}
+          {"name": "BNP Paribas", "match_threshold": 82},
+          {"name": "Wells Fargo", "match_threshold": 82}
         ],
         "auto_apply_threshold": 90,
         "description": "Global investment / wholesale banks with SG presence"
@@ -62,6 +63,15 @@
         ],
         "auto_apply_threshold": 90,
         "description": "Asset managers / sovereign funds with large data teams"
+      },
+      "custody_banks": {
+        "priority": 2,
+        "companies": [
+          {"name": "State Street", "match_threshold": 80},
+          {"name": "Northern Trust", "match_threshold": 80}
+        ],
+        "auto_apply_threshold": 88,
+        "description": "Global custody and asset-servicing banks with Singapore data, analytics, and technology teams"
       },
       "large_tech": {
         "priority": 1,
