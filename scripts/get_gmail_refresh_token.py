@@ -23,6 +23,7 @@ SCOPES = ["https://www.googleapis.com/auth/gmail.compose"]
 
 
 def main() -> None:
+    """Run local OAuth consent and print the resulting Gmail refresh token."""
     load_dotenv(Path(__file__).resolve().parent.parent / ".env")
     client_id = os.environ.get("GMAIL_CLIENT_ID")
     client_secret = os.environ.get("GMAIL_CLIENT_SECRET")

@@ -13,6 +13,7 @@ logger = logging.getLogger(__name__)
 HttpPost = Callable[[str, dict], list]  # (url, json_body) -> list of items
 
 _ACTOR = "bebity~linkedin-jobs-scraper"
+_RUN_URL = f"https://api.apify.com/v2/acts/{_ACTOR}/run-sync-get-dataset-items"
 
 
 class LinkedInPosterFinder:
@@ -25,11 +26,16 @@ class LinkedInPosterFinder:
     """
 
     def __init__(self, token: str, http_post: HttpPost | None = None):
+        """Configure Apify authentication and an injectable request function."""
         self.token = token
         self.http_post = http_post or self._default_post
 
     def _default_post(self, url: str, body: dict) -> list:
-        r = httpx.post(url, json=body, timeout=180)  # Apify run-sync can be slow
+        """Run the Apify actor with bearer authentication outside the URL."""
+        r = httpx.post(
+            url, headers={"Authorization": f"Bearer {self.token}"},
+            json=body, timeout=180,
+        )  # Apify run-sync can be slow
         r.raise_for_status()
         return r.json()
 
@@ -41,10 +47,8 @@ class LinkedInPosterFinder:
         return resp or []
 
     def find_poster(self, job_url: str, company: str = "") -> Contact | None:
-        url = (
-            f"https://api.apify.com/v2/acts/{_ACTOR}"
-            f"/run-sync-get-dataset-items?token={self.token}"
-        )
+        """Return the first credible poster associated with a LinkedIn vacancy."""
+        url = _RUN_URL
         try:
             items = self._items(self.http_post(url, {"urls": [job_url]}))
         except Exception:

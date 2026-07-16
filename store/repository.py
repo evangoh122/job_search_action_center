@@ -12,26 +12,38 @@ from matching import job_identity_key, merge_jobs
 class Repository(ABC):
     """Represent repository."""
     @abstractmethod
-    def upsert_job(self, job: Job) -> None: ...
+    def upsert_job(self, job: Job) -> None:
+        """Create or update one job."""
+        ...
 
     @abstractmethod
-    def get_job(self, job_id: str) -> Job | None: ...
+    def get_job(self, job_id: str) -> Job | None:
+        """Return one job by identifier."""
+        ...
 
     @abstractmethod
-    def list_jobs(self) -> list[Job]: ...
+    def list_jobs(self) -> list[Job]:
+        """Return all stored jobs."""
+        ...
 
     def get_job_by_dedupe_key(self, dedupe_key: str) -> Job | None:
         """Get job by dedupe key."""
         return next((j for j in self.list_jobs() if j.dedupe_key == dedupe_key), None)
 
     @abstractmethod
-    def upsert_contact(self, c: Contact) -> None: ...
+    def upsert_contact(self, c: Contact) -> None:
+        """Create or update one contact."""
+        ...
 
     @abstractmethod
-    def incr_action(self, kind: str, day: str) -> int: ...
+    def incr_action(self, kind: str, day: str) -> int:
+        """Increment and return a day-scoped action count."""
+        ...
 
     @abstractmethod
-    def count_actions(self, kind: str, day: str) -> int: ...
+    def count_actions(self, kind: str, day: str) -> int:
+        """Return a day-scoped action count."""
+        ...
 
 
 class SqliteRepository(Repository):

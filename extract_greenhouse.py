@@ -21,6 +21,7 @@ logger = logging.getLogger("extract_greenhouse")
 
 
 def _sheets() -> GoogleSheetsRepository:
+    """Build the configured Google Sheets tracker client."""
     sa = os.environ["GOOGLE_SERVICE_ACCOUNT_JSON"]
     spreadsheet_id = os.environ["SPREADSHEET_ID"]
     if os.path.exists(sa):
@@ -29,6 +30,7 @@ def _sheets() -> GoogleSheetsRepository:
 
 
 def main() -> None:
+    """Fetch Greenhouse roles and route them through the normal pipeline."""
     logging.basicConfig(level=logging.INFO)
     try:
         from dotenv import load_dotenv

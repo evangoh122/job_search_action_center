@@ -4,6 +4,7 @@ from models import Contact, EmailDraft, Job
 
 
 def _first_name(name: str) -> str:
+    """Return a greeting-safe first name."""
     return (name or "there").split()[0] if name else "there"
 
 
@@ -13,6 +14,7 @@ def build_draft(
     applicant_name: str = "",
     highlights: str = "",
 ) -> EmailDraft:
+    """Build one role-aware recruiter or hiring-manager outreach draft."""
     fn = _first_name(contact.name)
     parts = [f"Hi {fn},"]
 
@@ -54,4 +56,5 @@ def build_drafts(
     applicant_name: str = "",
     highlights: str = "",
 ) -> list[EmailDraft]:
+    """Build outreach drafts for contacts that have an email address."""
     return [build_draft(job, c, applicant_name, highlights) for c in contacts if c.email]

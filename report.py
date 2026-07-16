@@ -6,6 +6,7 @@ from models import Job
 
 
 def top_jobs(jobs: list[Job], n: int = 10) -> list[Job]:
+    """Return the highest-scoring jobs up to the requested limit."""
     scored = [j for j in jobs if j.score is not None]
     return sorted(scored, key=lambda j: j.score or 0, reverse=True)[:n]
 

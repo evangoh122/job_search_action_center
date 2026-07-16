@@ -102,6 +102,7 @@ def _profile_doc() -> str:
 
 
 def title_on_allowlist(job: Job) -> bool:
+    """Return whether a job title contains an allowed target role."""
     text = _text(job)
     return any(role_title in text for role_title in ROLE_TITLES)
 
@@ -132,6 +133,7 @@ def overall_match(job: Job) -> float:
 
 @lru_cache(maxsize=1)
 def _target_token_sets() -> tuple[tuple[frozenset[str], int], ...]:
+    """Cache normalized target-company tokens with their priorities."""
     return tuple((frozenset(name.split()), prio) for name, prio in TARGET_COMPANIES.items())
 
 
@@ -178,6 +180,7 @@ def seniority_factor(job: Job) -> float:
 
 
 def final_score(job: Job, within_24h: bool = False) -> float:
+    """Return the bounded weighted match score with an optional recency boost."""
     fs = 100 * (0.65 * overall_match(job) + 0.35 * company_match(job)) * seniority_factor(job)
     if within_24h:
         fs = min(100.0, fs + RECENCY_BOOST)

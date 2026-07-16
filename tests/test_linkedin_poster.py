@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from unittest.mock import Mock, patch
+
 from network.linkedin_poster import LinkedInPosterFinder
 
 
@@ -46,3 +48,15 @@ def test_exception_returns_none():
         raise RuntimeError("network error")
 
     assert LinkedInPosterFinder("fake", http_post=_fail).find_poster("https://x/123") is None
+
+
+def test_default_post_uses_bearer_header_not_query_parameter():
+    """Keep the Apify token out of URLs and request logs."""
+    response = Mock()
+    response.json.return_value = []
+    with patch("network.linkedin_poster.httpx.post", return_value=response) as post:
+        LinkedInPosterFinder("secret-token").find_poster("https://x/123")
+
+    url = post.call_args.args[0]
+    assert "token=" not in url
+    assert post.call_args.kwargs["headers"] == {"Authorization": "Bearer secret-token"}
