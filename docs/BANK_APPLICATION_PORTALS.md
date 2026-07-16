@@ -26,6 +26,10 @@ Candidate accounts are not shared between employers, even when both employers us
 Passwords, MFA codes, recovery codes, CAPTCHA responses, and legal consent decisions must not
 be stored in this repository or in `.env`.
 
+Automated Workday discovery is restricted to listings whose Workday `locationsText` contains
+`Singapore`. A missing, blank, or non-Singapore `WORKDAY_LOCATION` value cannot disable or
+broaden this production constraint.
+
 ## Information to prepare
 
 Store reusable, non-password application data in the ignored local `.env`:
@@ -62,6 +66,7 @@ APPLICANT_NOTICE_PERIOD=
 APPLICANT_SALARY_EXPECTATION=
 RESUME_PATH=
 APPLICATION_ANSWERS_JSON=data/application_answers.json
+WORKDAY_LOCATION=Singapore
 
 CITI_LOGIN_EMAIL=
 JPMC_LOGIN_EMAIL=

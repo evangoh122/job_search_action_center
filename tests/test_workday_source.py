@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import pytest
+
+from runner import _workday_location
 from sources.workday import DEFAULT_BANK_TENANTS, WorkdaySource
 
 
@@ -84,3 +87,12 @@ def test_default_tenants_cover_verified_singapore_workday_financial_employers():
     companies = {tenant["company"] for tenant in DEFAULT_BANK_TENANTS}
     assert companies == expected
     assert len({tenant["host"] for tenant in DEFAULT_BANK_TENANTS}) == len(expected)
+
+
+@pytest.mark.parametrize("configured", [None, "", "London", "Singapore"])
+def test_runner_enforces_singapore_workday_location(monkeypatch, configured):
+    if configured is None:
+        monkeypatch.delenv("WORKDAY_LOCATION", raising=False)
+    else:
+        monkeypatch.setenv("WORKDAY_LOCATION", configured)
+    assert _workday_location() == "Singapore"

@@ -95,14 +95,27 @@ def sources(apify_token: str = "", include_greenhouse: bool = True) -> list[RawJ
     try:
         from sources.workday import WorkdaySource
 
-        # Target banks on Workday (Citi, Deutsche Bank, Morgan Stanley, ...).
-        wd_loc = os.environ.get("WORKDAY_LOCATION", "Singapore") or None
+        # Workday financial-employer discovery is deliberately Singapore-only.
+        wd_loc = _workday_location()
         wd_jobs = WorkdaySource(location_contains=wd_loc).fetch()
         jobs.extend(wd_jobs)
         logger.info("Workday source added %d jobs", len(wd_jobs))
     except Exception:
         logger.warning("Workday source failed — continuing without it", exc_info=True)
     return jobs
+
+
+def _workday_location() -> str:
+    """Return the mandatory Singapore location filter for Workday bank searches."""
+    import os
+
+    configured = os.environ.get("WORKDAY_LOCATION", "Singapore").strip()
+    if configured.casefold() != "singapore":
+        logger.warning(
+            "Ignoring WORKDAY_LOCATION=%r; bank Workday discovery is Singapore-only",
+            configured,
+        )
+    return "Singapore"
 
 
 def normalize(raw: RawJob) -> Job:
