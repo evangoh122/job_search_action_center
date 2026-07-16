@@ -113,5 +113,8 @@ def test_company_match_handles_name_suffix():
 def test_tech_companies_are_targeted():
     assert target_priority("ByteDance Singapore") == 1
     assert target_priority("Anthropic") == 1
+    assert target_priority("Netflix Singapore") == 1
+    assert target_priority("Dell Technologies Singapore") == 1
+    assert target_priority("Samsung Electronics") == 1
     assert target_priority("Airwallex Singapore") == 2
     assert target_priority("Cloudflare") == 2

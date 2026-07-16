@@ -74,6 +74,17 @@
           {"name": "Meta", "match_threshold": 82},
           {"name": "Apple", "match_threshold": 82},
           {"name": "NVIDIA", "match_threshold": 82},
+          {"name": "Netflix", "match_threshold": 82},
+          {"name": "LinkedIn", "match_threshold": 82},
+          {"name": "Uber", "match_threshold": 82},
+          {"name": "Spotify", "match_threshold": 82},
+          {"name": "Samsung", "match_threshold": 82},
+          {"name": "Intel", "match_threshold": 82},
+          {"name": "AMD", "match_threshold": 82},
+          {"name": "Qualcomm", "match_threshold": 82},
+          {"name": "Dell Technologies", "match_threshold": 82},
+          {"name": "HP", "match_threshold": 82},
+          {"name": "Hewlett Packard Enterprise", "match_threshold": 82},
           {"name": "OpenAI", "match_threshold": 82},
           {"name": "ByteDance", "match_threshold": 82},
           {"name": "TikTok", "match_threshold": 82},
@@ -85,7 +96,7 @@
           {"name": "Shopee", "match_threshold": 82}
         ],
         "auto_apply_threshold": 90,
-        "description": "Large technology companies, cloud providers, and APAC consumer-tech platforms with major data, AI, cloud, and platform organizations"
+        "description": "Large technology, cloud, semiconductor, hardware, and APAC consumer-tech companies with major data, AI, cloud, and platform organizations"
       },
       "ai_labs_and_model_companies": {
         "priority": 1,
