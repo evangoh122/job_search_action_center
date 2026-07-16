@@ -117,3 +117,21 @@ def aggregate_salary(
         left.currency or right.currency,
         left.period or right.period,
     )
+
+
+def is_below_monthly_sgd_floor(salary: SalaryRange, floor: float) -> bool:
+    """Return whether a conclusive SGD salary maximum is below a monthly floor.
+
+    Unknown currencies, periods, and open-ended ranges are retained so that an
+    incomplete job-board payload cannot hide an otherwise suitable role.
+    """
+    if salary.currency.strip().upper() != "SGD" or salary.maximum is None:
+        return False
+    period = salary.period.strip().upper()
+    if period == "MONTH":
+        monthly_maximum = salary.maximum
+    elif period == "YEAR":
+        monthly_maximum = salary.maximum / 12
+    else:
+        return False
+    return monthly_maximum < floor

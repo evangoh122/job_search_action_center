@@ -101,3 +101,35 @@ def test_explicit_approval_can_promote_existing_draft(monkeypatch):
     run(repo=repo, jobs=[_raw()], auto_applier=approved)
     assert approved.calls == 1
     assert repo.list_jobs()[0].status == "applied"
+
+
+def test_salary_floor_prevents_storage_and_application_actions(monkeypatch):
+    monkeypatch.setattr("runner.final_score", lambda job, within_24h: 100.0)
+    monkeypatch.setattr("runner.apply_tier", lambda job: "A")
+    low_salary = _raw().model_copy(update={
+        "salary_min": 9000,
+        "salary_max": 11999,
+        "salary_currency": "SGD",
+        "salary_period": "MONTH",
+    })
+    repo = SqliteRepository()
+    applier = FakeApplier(approved=True)
+
+    result = run(repo=repo, jobs=[low_salary], auto_applier=applier)
+
+    assert result["salary_filtered"] == 1
+    assert result["stored"] == 0
+    assert applier.calls == 0
+    assert repo.list_jobs() == []
+
+
+def test_unknown_salary_remains_eligible(monkeypatch):
+    monkeypatch.setattr("runner.final_score", lambda job, within_24h: 60.0)
+    monkeypatch.setattr("runner.apply_tier", lambda job: "C")
+    repo = SqliteRepository()
+
+    result = run(repo=repo, jobs=[_raw()])
+
+    assert result["salary_filtered"] == 0
+    assert result["stored"] == 1
+    assert len(repo.list_jobs()) == 1

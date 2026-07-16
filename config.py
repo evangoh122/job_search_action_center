@@ -25,3 +25,7 @@ def load_targets(path: Path | None = None) -> dict[str, Any]:
     resolved = path or _TARGETS_PATH
     with resolved.open(encoding="utf-8") as f:
         return json.load(f)
+
+
+_SALARY_RULES = load_targets()["salary_rules"]
+MINIMUM_MONTHLY_SGD: float = float(_SALARY_RULES["minimum_monthly_sgd"])

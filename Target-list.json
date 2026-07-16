@@ -1,4 +1,10 @@
 {
+  "salary_rules": {
+    "minimum_monthly_sgd": 12000,
+    "unknown_salary_policy": "keep",
+    "description": "Reject only jobs with a known maximum monthly SGD salary below S$12,000."
+  },
+
   "data_and_ai_companies": {
     "version": "3.1",
     "last_updated": "2026-07-12",

@@ -13,13 +13,14 @@ from datetime import datetime, timedelta
 from apply.draft import ApplicationDraftQueue
 from apply.resume_models import ResumeAchievement
 from apply.tailor import tailor
-from config import DAILY_CAPS
+from config import DAILY_CAPS, MINIMUM_MONTHLY_SGD
 from exclusions import is_excluded_company
 from models import Job, RawJob
 from matching import find_duplicate_job, job_identity_key, merge_jobs
 from network.email_finder import HunterEmailFinder
 from network.outreach import build_drafts
 from routing import apply_tier, should_outreach
+from salary import SalaryRange, is_below_monthly_sgd_floor
 from scoring import final_score
 from sources.efinancialcareers import EFinancialCareersSource
 from sources.mycareersfuture import MyCareersFutureSource
@@ -247,6 +248,7 @@ def run(
     day = datetime.now().date().isoformat()
     counts = {"processed": 0, "stored": 0, "duplicates": 0,
               "excluded": 0, "skipped": 0,
+              "salary_filtered": 0,
               "qualified": 0, "tier_a": 0, "app_drafts": 0, "emails": 0, "posters": 0}
     new_jobs: list[Job] = []  # roles newly added to the tracker this run (for notifications)
     seen_this_run: set[str] = set()
@@ -260,6 +262,22 @@ def run(
             counts["excluded"] += 1
             continue
         job = normalize(raw)
+        salary = SalaryRange(
+            minimum=job.salary_min,
+            maximum=job.salary_max,
+            currency=job.salary_currency,
+            period=job.salary_period,
+        )
+        if is_below_monthly_sgd_floor(salary, MINIMUM_MONTHLY_SGD):
+            counts["salary_filtered"] += 1
+            logger.info(
+                "Salary floor filtered '%s' at %s (maximum %s %s)",
+                job.title,
+                job.company_canonical,
+                job.salary_max,
+                job.salary_period,
+            )
+            continue
         job.score = final_score(job, within_24h=_within_24h(raw))
         job.tier = apply_tier(job)
         existing = repo.get_job_by_dedupe_key(job.dedupe_key)
