@@ -7,6 +7,7 @@ from apply.resume_bank import load_achievements
 
 
 def test_load_achievements(tmp_path: Path):
+    """Verify the load achievements scenario."""
     path = tmp_path / "achievements.json"
     path.write_text(
         json.dumps(
@@ -32,6 +33,7 @@ def test_load_achievements(tmp_path: Path):
 
 
 def test_load_achievements_preserves_explicit_provenance(tmp_path: Path):
+    """Verify the load achievements preserves explicit provenance scenario."""
     path = tmp_path / "achievements.json"
     path.write_text(
         '[{"evidence_id":"verified-1","source":"master resume",'

@@ -7,6 +7,7 @@ from models import Applicant, Job
 
 
 def _job() -> Job:
+    """Provide a test helper for job."""
     return Job(
         id="job-1",
         source="test",
@@ -22,6 +23,7 @@ def _job() -> Job:
 
 
 def test_select_resume_keywords_from_job_text():
+    """Verify the select resume keywords from job text scenario."""
     keywords = select_resume_keywords(_job(), limit=5)
     assert "data analytics" in keywords
     assert "generative ai" in keywords
@@ -29,6 +31,7 @@ def test_select_resume_keywords_from_job_text():
 
 
 def test_build_contact_header_includes_github_and_resume_links():
+    """Verify the build contact header includes github and resume links scenario."""
     header = build_contact_header(
         Applicant(
             name="Evan Goh",
@@ -45,6 +48,7 @@ def test_build_contact_header_includes_github_and_resume_links():
 
 
 def test_build_resume_variant_formats_keyword_xyz_bullets():
+    """Verify the build resume variant formats keyword xyz bullets scenario."""
     achievements = [
         ResumeAchievement(
             keyword="data analytics",
@@ -72,6 +76,7 @@ def test_build_resume_variant_formats_keyword_xyz_bullets():
 
 
 def test_build_resume_variant_skips_incomplete_xyz_evidence():
+    """Verify the build resume variant skips incomplete xyz evidence scenario."""
     achievements = [
         ResumeAchievement(keyword="python", result="Automated reporting", metric="", method="using Python")
     ]
@@ -82,6 +87,7 @@ def test_build_resume_variant_skips_incomplete_xyz_evidence():
 
 
 def test_domain_keyword_beats_shared_tool_overlap():
+    """Verify the domain keyword beats shared tool overlap scenario."""
     job = Job(
         id="job-2",
         source="test",
@@ -114,6 +120,7 @@ def test_domain_keyword_beats_shared_tool_overlap():
 
 
 def test_build_resume_variant_can_exclude_adjacent_role_tags():
+    """Verify the build resume variant can exclude adjacent role tags scenario."""
     achievements = [
         ResumeAchievement(
             keyword="credit risk analytics",
@@ -142,6 +149,7 @@ def test_build_resume_variant_can_exclude_adjacent_role_tags():
 
 
 def test_resume_variant_includes_required_agent_outputs_and_flags_gaps():
+    """Verify the resume variant includes required agent outputs and flags gaps scenario."""
     achievements = [
         ResumeAchievement(
             keyword="machine learning",
@@ -169,6 +177,7 @@ def test_resume_variant_includes_required_agent_outputs_and_flags_gaps():
 
 
 def test_unrelated_achievement_is_excluded_instead_of_ranked_by_metric_only():
+    """Verify the unrelated achievement is excluded instead of ranked by metric only scenario."""
     achievement = ResumeAchievement(
         keyword="education operations",
         result="Built a school timetable",
@@ -183,6 +192,7 @@ def test_unrelated_achievement_is_excluded_instead_of_ranked_by_metric_only():
 
 
 def test_classify_role_uses_primary_and_optional_secondary_family():
+    """Verify the classify role uses primary and optional secondary family scenario."""
     primary, secondary = classify_role(_job())
 
     assert primary in {"data science / applied AI", "data / analytics"}
@@ -190,6 +200,7 @@ def test_classify_role_uses_primary_and_optional_secondary_family():
 
 
 def test_resume_bullet_preserves_common_technical_acronym_casing():
+    """Verify the resume bullet preserves common technical acronym casing scenario."""
     job = Job(
         id="job-acronym",
         source="test",
@@ -213,6 +224,7 @@ def test_resume_bullet_preserves_common_technical_acronym_casing():
 
 
 def test_disclosure_constrained_evidence_is_not_selected():
+    """Verify the disclosure constrained evidence is not selected scenario."""
     achievement = ResumeAchievement(
         keyword="machine learning",
         result="Improved a confidential model",

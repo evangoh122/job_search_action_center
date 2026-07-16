@@ -9,21 +9,26 @@ from sources.linkedin import LinkedInJobSource
 
 
 def _today_iso() -> str:
+    """Provide a test helper for today iso."""
     return datetime.now().isoformat()
 
 
 def _old_iso() -> str:
+    """Provide a test helper for old iso."""
     return (datetime.now() - timedelta(days=5)).isoformat()
 
 
 def _source(items: list[dict], terms: list[str] | None = None) -> LinkedInJobSource:
+    """Provide a test helper for source."""
     def fake_post(url: str, body: dict) -> list:
+        """Provide a test helper for fake post."""
         return items
 
     return LinkedInJobSource("tok", terms or ["head of data"], http_post=fake_post)
 
 
 def test_returns_raw_jobs():
+    """Verify returning raw jobs."""
     items = [{"jobUrl": "https://li.co/j/1", "companyName": "DBS", "title": "Head of Data",
                "postedAt": _today_iso(), "descriptionText": "Lead ML teams"}]
     jobs = _source(items).fetch()
@@ -38,6 +43,7 @@ def test_returns_raw_jobs():
 
 
 def test_filters_old_jobs():
+    """Verify filtering old jobs."""
     items = [
         {"jobUrl": "https://li.co/j/new", "companyName": "DBS", "title": "VP Data",
          "postedAt": _today_iso()},
@@ -50,11 +56,13 @@ def test_filters_old_jobs():
 
 
 def test_dedupes_across_terms():
+    """Verify the dedupes across terms scenario."""
     item = {"jobUrl": "https://li.co/j/shared", "companyName": "OCBC", "title": "Head of Analytics",
             "postedAt": _today_iso()}
     calls = []
 
     def fake_post(url: str, body: dict) -> list:
+        """Provide a test helper for fake post."""
         calls.append(body["title"])  # actor's keyword field is `title`
         return [item]
 
@@ -65,6 +73,7 @@ def test_dedupes_across_terms():
 
 
 def test_skips_missing_company_or_title():
+    """Verify skipping missing company or title."""
     items = [
         {"jobUrl": "https://li.co/j/1", "companyName": "", "title": "VP", "postedAt": _today_iso()},
         {"jobUrl": "https://li.co/j/2", "companyName": "DBS", "title": "", "postedAt": _today_iso()},
@@ -89,6 +98,7 @@ def test_sends_correct_actor_schema():
     sent = {}
 
     def fake_post(url: str, body: dict) -> list:
+        """Provide a test helper for fake post."""
         sent.update(body)
         return []
 
@@ -101,6 +111,7 @@ def test_sends_correct_actor_schema():
 
 
 def test_parses_publishedat_date_field():
+    """Verify parsing publishedat date field."""
     items = [{"jobUrl": "https://li.co/j/1", "companyName": "OCBC", "title": "Data & AI Architect",
                "publishedAt": datetime.now().date().isoformat()}]
     jobs = _source(items).fetch()
@@ -111,6 +122,7 @@ def test_parses_publishedat_date_field():
 def test_tolerates_apify_failure():
     """A failed Apify call returns empty list without raising."""
     def bad_post(url: str, body: dict) -> list:
+        """Provide a test helper for bad post."""
         raise RuntimeError("network error")
 
     src = LinkedInJobSource("tok", ["head of data"], http_post=bad_post)
@@ -119,9 +131,11 @@ def test_tolerates_apify_failure():
 
 
 def test_authorization_failure_stops_after_first_term():
+    """Verify the authorization failure stops after first term scenario."""
     calls = 0
 
     def forbidden(url: str, body: dict) -> list:
+        """Provide a test helper for forbidden."""
         nonlocal calls
         calls += 1
         request = httpx.Request("POST", "https://api.apify.test/run")

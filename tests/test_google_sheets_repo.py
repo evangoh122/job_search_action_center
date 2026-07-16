@@ -7,6 +7,7 @@ from store.google_sheets_repo import GoogleSheetsRepository
 
 
 def _job() -> Job:
+    """Provide a test helper for job."""
     return Job(
         id="j1", source="mycareersfuture", company_canonical="DBS",
         dedupe_key="dbs|head of data|u1", title="Head of Data",
@@ -16,6 +17,7 @@ def _job() -> Job:
 
 
 def _repo(http, ready=True) -> GoogleSheetsRepository:
+    """Provide a test helper for repo."""
     repo = GoogleSheetsRepository("sheet123", token="tok", http=http)
     repo._ready = ready  # skip tab/header bootstrapping unless a test wants it
     return repo
@@ -26,6 +28,7 @@ def _fake(col_a: list | None = None):
     calls: list[tuple[str, str, dict | None]] = []
 
     def http(method: str, url: str, body: dict | None) -> dict:
+        """Provide a test helper for http."""
         calls.append((method, url, body))
         if method == "GET" and "A2%3AA" in url:
             return {"values": col_a or []}
@@ -35,17 +38,20 @@ def _fake(col_a: list | None = None):
 
 
 def _appended(calls) -> list:
+    """Provide a test helper for appended."""
     post = [c for c in calls if c[0] == "POST" and ":append" in c[1]][0]
     return post[2]["values"][0]
 
 
 def _updated(calls) -> list:
+    """Provide a test helper for updated."""
     put = [c for c in calls if c[0] == "PUT"][0]
     return put[2]["values"][0]
 
 
 # ── Jobs ─────────────────────────────────────────────────────────────────────
 def test_upsert_job_creates_when_absent():
+    """Verify the upsert job creates when absent scenario."""
     http, calls = _fake([])
     key = _repo(http).upsert_job(_job())
     assert key == "dbs|head of data|u1"
@@ -58,6 +64,7 @@ def test_upsert_job_creates_when_absent():
 
 def test_refresh_aging_writes_live_formulas():
     # 3 data rows present in column A.
+    """Verify the refresh aging writes live formulas scenario."""
     http, calls = _fake([["k1"], ["k2"], ["k3"]])
     repo = _repo(http)
     repo._sheet_ids = {"Jobs": 0}
@@ -74,6 +81,7 @@ def test_refresh_aging_writes_live_formulas():
 
 
 def test_upsert_job_updates_when_present():
+    """Verify the upsert job updates when present scenario."""
     http, calls = _fake([["dbs|head of data|u1"]])
     key = _repo(http).upsert_job(_job())
     assert key == "dbs|head of data|u1"
@@ -83,6 +91,7 @@ def test_upsert_job_updates_when_present():
 
 
 def test_tier_none_blank():
+    """Verify the tier none blank scenario."""
     job = _job()
     job.tier = None
     http, calls = _fake([])
@@ -91,6 +100,7 @@ def test_tier_none_blank():
 
 
 def test_salary_range_and_average_are_written_after_existing_applied_column():
+    """Verify the salary range and average are written after existing applied column scenario."""
     job = _job()
     job.salary_min = 9000
     job.salary_max = 13000
@@ -105,6 +115,7 @@ def test_salary_range_and_average_are_written_after_existing_applied_column():
 
 # ── Contacts ─────────────────────────────────────────────────────────────────
 def _contact(**kw) -> Contact:
+    """Provide a test helper for contact."""
     base = dict(id="c1", name="Jane Tan", company_canonical="DBS", role="Talent Acquisition",
                 role_type="recruiter", email="jane@dbs.com", confidence=92)
     base.update(kw)
@@ -112,6 +123,7 @@ def _contact(**kw) -> Contact:
 
 
 def test_upsert_contact_creates_keyed_by_email():
+    """Verify the upsert contact creates keyed by email scenario."""
     http, calls = _fake([])
     key = _repo(http).upsert_contact(_contact())
     assert key == "jane@dbs.com"
@@ -123,12 +135,14 @@ def test_upsert_contact_creates_keyed_by_email():
 
 
 def test_upsert_contact_invalid_type_blank():
+    """Verify the upsert contact invalid type blank scenario."""
     http, calls = _fake([])
     _repo(http).upsert_contact(_contact(role_type="boss"))
     assert _appended(calls)[5] == ""  # only recruiter|hiring_manager kept
 
 
 def test_upsert_contact_keys_by_linkedin_when_no_email():
+    """Verify the upsert contact keys by linkedin when no email scenario."""
     http, calls = _fake([])
     key = _repo(http).upsert_contact(
         _contact(email="", linkedin_url="https://linkedin.com/in/jane")
@@ -139,6 +153,7 @@ def test_upsert_contact_keys_by_linkedin_when_no_email():
 
 # ── Outreach ─────────────────────────────────────────────────────────────────
 def test_record_outreach_links_job_and_contact():
+    """Verify the record outreach links job and contact scenario."""
     http, calls = _fake([])
     draft = EmailDraft(job_id="j1", company="DBS", to_email="jane@dbs.com", to_name="Jane",
                        role_type="recruiter", subject="Re: Head of Data", body="Hello")
@@ -152,6 +167,7 @@ def test_record_outreach_links_job_and_contact():
 
 
 def test_record_outreach_without_links():
+    """Verify the record outreach without links scenario."""
     http, calls = _fake([])
     draft = EmailDraft(job_id="j1", company="DBS", to_email="jane@dbs.com", to_name="Jane",
                        role_type="recruiter", subject="Hi", body="Hello")
@@ -162,9 +178,11 @@ def test_record_outreach_without_links():
 
 # ── Bootstrapping ─────────────────────────────────────────────────────────────
 def test_ensure_creates_missing_tabs_recolours_and_writes_headers():
+    """Verify the ensure creates missing tabs recolours and writes headers scenario."""
     calls: list[tuple[str, str, dict | None]] = []
 
     def http(method: str, url: str, body: dict | None) -> dict:
+        """Provide a test helper for http."""
         calls.append((method, url, body))
         if method == "GET" and "/values/" not in url:  # spreadsheet metadata
             return {"sheets": [{"properties": {"title": "Jobs", "sheetId": 0}}]}  # only Jobs
@@ -193,11 +211,14 @@ def test_ensure_creates_missing_tabs_recolours_and_writes_headers():
 
 
 def test_ensure_inserts_application_link_column_before_rewriting_legacy_headers():
+    """Verify the ensure inserts application link column before rewriting legacy headers scenario.
+    """
     calls: list[tuple[str, str, dict | None]] = []
     legacy = ["DedupeKey", "Title", "Company", "URL", "Score", "Tier", "Status",
               "Source", "Posted", "Description", "Aging", "Applied"]
 
     def http(method: str, url: str, body: dict | None) -> dict:
+        """Provide a test helper for http."""
         calls.append((method, url, body))
         if method == "GET" and "/values/" not in url:
             return {"sheets": [{"properties": {"title": "Jobs", "sheetId": 7}}]}
@@ -220,6 +241,7 @@ def test_ensure_inserts_application_link_column_before_rewriting_legacy_headers(
 
 
 def test_upsert_networking_keyed_by_email():
+    """Verify the upsert networking keyed by email scenario."""
     http, calls = _fake([])
     key = _repo(http).upsert_networking(
         "Sam Lee", email="sam@acme.com", company="Acme", source="gmail",
@@ -232,6 +254,7 @@ def test_upsert_networking_keyed_by_email():
 
 
 def test_upsert_networking_falls_back_to_name():
+    """Verify the upsert networking falls back to name scenario."""
     http, calls = _fake([])
     key = _repo(http).upsert_networking("No Email Person")
     assert key == "No Email Person"
@@ -239,6 +262,7 @@ def test_upsert_networking_falls_back_to_name():
 
 
 def test_upsert_application_writes_cover_letter_section():
+    """Verify the upsert application writes cover letter section scenario."""
     http, calls = _fake([])
     draft = ApplicationDraft(
         job_id="j1", company="DBS", title="Head of Data", url="https://x/1",
@@ -253,6 +277,7 @@ def test_upsert_application_writes_cover_letter_section():
 
 
 def test_upsert_application_rejects_missing_cover_letter():
+    """Verify the upsert application rejects missing cover letter scenario."""
     http, _ = _fake([])
     draft = ApplicationDraft(job_id="j1", company="DBS", title="Role", url="https://x",
                              cover_letter="")
@@ -262,6 +287,7 @@ def test_upsert_application_rejects_missing_cover_letter():
 
 
 def test_upsert_linkedin_post_match_writes_evidence_and_review_status():
+    """Verify the upsert linkedin post match writes evidence and review status scenario."""
     http, calls = _fake([])
     match = LinkedInPostMatch(
         id="j1|p1", job_id="j1", job_key="dbs|head of data", company="DBS",
@@ -282,9 +308,11 @@ def test_upsert_linkedin_post_match_writes_evidence_and_review_status():
 
 # ── Backup ────────────────────────────────────────────────────────────────────
 def test_snapshot_to_creates_dated_tabs_and_writes_values():
+    """Verify the snapshot to creates dated tabs and writes values scenario."""
     calls: list[tuple[str, str, dict | None]] = []
 
     def http(method: str, url: str, body: dict | None) -> dict:
+        """Provide a test helper for http."""
         calls.append((method, url, body))
         if method == "GET" and "backup999" in url and "/values/" not in url:
             return {"sheets": []}  # backup spreadsheet starts empty

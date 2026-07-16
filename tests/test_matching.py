@@ -10,6 +10,7 @@ from models import Job
 
 
 def _job(source: str, url: str, *, status: str = "new") -> Job:
+    """Provide a test helper for job."""
     return Job(
         id="stable-id",
         source=source,
@@ -25,12 +26,14 @@ def _job(source: str, url: str, *, status: str = "new") -> Job:
 
 
 def test_identity_matches_common_cross_board_variants():
+    """Verify the identity matches common cross board variants scenario."""
     assert job_identity_key("DBS Bank Ltd.", "Vice President, Data & Analytics") == (
         job_identity_key("DBS Bank", "VP Data and Analytics")
     )
 
 
 def test_identity_separates_same_title_requisitions_by_stable_url():
+    """Verify the identity separates same title requisitions by stable url scenario."""
     first = job_identity_key("DBS", "VP Data", url="https://dbs.example/jobs/100?utm_source=x")
     same = job_identity_key("DBS", "VP Data", url="https://dbs.example/jobs/100")
     second = job_identity_key("DBS", "VP Data", url="https://dbs.example/jobs/200")
@@ -39,6 +42,7 @@ def test_identity_separates_same_title_requisitions_by_stable_url():
 
 
 def test_merge_retains_links_and_applied_status():
+    """Verify the merge retains links and applied status scenario."""
     existing = _job("linkedin", "https://linkedin/jobs/1", status="applied")
     incoming = _job("mycareersfuture", "https://mcf/jobs/2")
     merged = merge_jobs(existing, incoming)
@@ -52,6 +56,7 @@ def test_merge_retains_links_and_applied_status():
 
 
 def test_merge_preserves_strongest_status_in_both_orders():
+    """Verify the merge preserves strongest status in both orders scenario."""
     new = _job("linkedin", "https://linkedin/jobs/1", status="new")
     applied = _job("mycareersfuture", "https://mcf/jobs/2", status="applied")
     assert merge_jobs(new, applied).status == "applied"
@@ -59,6 +64,7 @@ def test_merge_preserves_strongest_status_in_both_orders():
 
 
 def test_description_starting_with_about_us_retains_substantive_content():
+    """Verify the description starting with about us retains substantive content scenario."""
     responsibilities = (
         "About us. We are a bank. Lead the enterprise data platform roadmap, governance, "
         "engineering delivery, cloud controls, analytics products, and regional stakeholders. "
@@ -71,6 +77,7 @@ def test_description_starting_with_about_us_retains_substantive_content():
 
 
 def test_finds_duplicate_from_writeup_when_title_and_company_differ():
+    """Verify finding duplicate from writeup when title and company differ."""
     responsibilities = (
         "Lead the enterprise data platform roadmap and manage a regional engineering team. "
         "Own cloud migration, data governance, stakeholder engagement, operating controls, "

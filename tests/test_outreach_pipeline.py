@@ -16,6 +16,7 @@ import runner
 
 
 def _draft() -> EmailDraft:
+    """Provide a test helper for draft."""
     return EmailDraft(
         job_id="j1", company="Acme", to_email="x@acme.com", to_name="X",
         role_type="recruiter", subject="Hi", body="Body",
@@ -23,9 +24,11 @@ def _draft() -> EmailDraft:
 
 
 def test_gmail_drafter_posts_to_drafts_endpoint():
+    """Verify the gmail drafter posts to drafts endpoint scenario."""
     calls: list[tuple[str, str, dict | None]] = []
 
     def http(method, url, body):
+        """Provide a test helper for http."""
         calls.append((method, url, body))
         return {"id": "draft-123"}
 
@@ -37,6 +40,7 @@ def test_gmail_drafter_posts_to_drafts_endpoint():
 
 
 def test_review_queue_drafter_writes_jsonl(tmp_path):
+    """Verify the review queue drafter writes jsonl scenario."""
     path = tmp_path / "drafts.jsonl"
     did = ReviewQueueDrafter(str(path)).create_draft(_draft())
     assert did
@@ -44,11 +48,15 @@ def test_review_queue_drafter_writes_jsonl(tmp_path):
 
 
 def test_fallback_drafter_preserves_drafts_after_gmail_failure(tmp_path):
+    """Verify the fallback drafter preserves drafts after gmail failure scenario."""
     class FailingDrafter:
+        """Group test scenarios for FailingDrafter."""
         def __init__(self):
+            """Provide a test helper for init."""
             self.calls = 0
 
         def create_draft(self, draft):
+            """Provide a test helper for create draft."""
             self.calls += 1
             raise RuntimeError("expired Gmail credentials")
 
@@ -63,7 +71,9 @@ def test_fallback_drafter_preserves_drafts_after_gmail_failure(tmp_path):
 
 
 def test_refresh_gmail_access_token():
+    """Verify the refresh gmail access token scenario."""
     def token_post(url, data):
+        """Provide a test helper for token post."""
         assert url.endswith("/token")
         assert data["grant_type"] == "refresh_token"
         assert data["refresh_token"] == "r-token"
@@ -74,9 +84,11 @@ def test_refresh_gmail_access_token():
 
 
 def test_gmail_drafter_caches_access_token():
+    """Verify the gmail drafter caches access token scenario."""
     calls = []
 
     def token_post(url, data):
+        """Provide a test helper for token post."""
         calls.append(data)
         return {"access_token": "ya29.fresh"}
 
@@ -87,12 +99,15 @@ def test_gmail_drafter_caches_access_token():
 
 
 def test_gmail_drafter_from_refresh_token_creates_draft():
+    """Verify the gmail drafter from refresh token creates draft scenario."""
     def token_post(url, data):
+        """Provide a test helper for token post."""
         return {"access_token": "ya29.fresh"}
 
     http_calls = []
 
     def http(method, url, body):
+        """Provide a test helper for http."""
         http_calls.append((method, url, body))
         return {"id": "draft-oauth"}
 
@@ -102,7 +117,9 @@ def test_gmail_drafter_from_refresh_token_creates_draft():
 
 
 class _FakeFinder:
+    """Group test scenarios for FakeFinder."""
     def find_people(self, company, max_each=1):
+        """Provide a test helper for find people."""
         return [
             Contact(id="r", name="Rec", company_canonical=company, role_type="recruiter", email="r@x.com"),
             Contact(id="m", name="Mgr", company_canonical=company, role_type="hiring_manager", email="m@x.com"),
@@ -110,20 +127,25 @@ class _FakeFinder:
 
 
 class _CountingDrafter:
+    """Group test scenarios for CountingDrafter."""
     def __init__(self):
+        """Provide a test helper for init."""
         self.n = 0
 
     def create_draft(self, draft):
+        """Provide a test helper for create draft."""
         self.n += 1
         return str(self.n)
 
 
 def _qualified_job() -> Job:
+    """Provide a test helper for qualified job."""
     return Job(id="j1", source="t", company_canonical="Databricks",
                dedupe_key="k", title="Senior Data Scientist", url="https://x.com/1", score=90.0)
 
 
 def test_outreach_creates_two_drafts():
+    """Verify the outreach creates two drafts scenario."""
     repo = SqliteRepository()
     drafter = _CountingDrafter()
     day = datetime.now().date().isoformat()
@@ -133,6 +155,7 @@ def test_outreach_creates_two_drafts():
 
 
 def test_outreach_respects_daily_cap():
+    """Verify the outreach respects daily cap scenario."""
     repo = SqliteRepository()
     day = datetime.now().date().isoformat()
     for _ in range(DAILY_CAPS["outreach"]):
@@ -142,6 +165,7 @@ def test_outreach_respects_daily_cap():
 
 
 def test_outreach_disabled_without_finder():
+    """Verify the outreach disabled without finder scenario."""
     repo = SqliteRepository()
     day = datetime.now().date().isoformat()
     assert runner._run_outreach(_qualified_job(), repo, None, None, "", day) == 0

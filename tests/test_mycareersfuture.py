@@ -8,6 +8,7 @@ from sources.mycareersfuture import MyCareersFutureSource
 
 
 def test_fetch_filters_old_jobs() -> None:
+    """Verify the fetch filters old jobs scenario."""
     today_iso = datetime.now().date().isoformat()
     mock_results: list[dict[str, Any]] = [
         {
@@ -25,6 +26,7 @@ def test_fetch_filters_old_jobs() -> None:
     ]
 
     def fake_http_post(url: str, payload: dict) -> dict:
+        """Provide a test helper for fake http post."""
         assert "mycareersfuture" in url
         return {"results": mock_results}
 
@@ -40,6 +42,7 @@ def test_fetch_filters_old_jobs() -> None:
 
 
 def test_fetch_dedupes_across_terms() -> None:
+    """Verify the fetch dedupes across terms scenario."""
     today_iso = datetime.now().date().isoformat()
     single = [
         {
@@ -52,6 +55,7 @@ def test_fetch_dedupes_across_terms() -> None:
     calls = 0
 
     def fake_http_post(url: str, payload: dict) -> dict:
+        """Provide a test helper for fake http post."""
         nonlocal calls
         calls += 1
         return {"results": single}
@@ -64,14 +68,17 @@ def test_fetch_dedupes_across_terms() -> None:
 
 
 def test_fetch_enriches_description() -> None:
+    """Verify the fetch enriches description scenario."""
     today_iso = datetime.now().date().isoformat()
     search = [{"uuid": "u1", "title": "Head of Data", "postedCompany": {"name": "DBS"},
                "metadata": {"newPostingDate": today_iso}}]
 
     def fake_post(url: str, payload: dict) -> dict:
+        """Provide a test helper for fake post."""
         return {"results": search}
 
     def fake_get(url: str) -> dict:
+        """Provide a test helper for fake get."""
         assert "u1" in url
         return {"description": "<p>Lead <b>machine learning</b> teams</p>",
                 "skills": [{"skill": "Databricks"}, {"skill": "PySpark"}]}
@@ -86,6 +93,7 @@ def test_fetch_enriches_description() -> None:
 
 
 def test_fetch_skips_malformed_entries() -> None:
+    """Verify the fetch skips malformed entries scenario."""
     today_iso = datetime.now().date().isoformat()
     mock_results: list[dict[str, Any]] = [
         {
@@ -98,6 +106,7 @@ def test_fetch_skips_malformed_entries() -> None:
     ]
 
     def fake_http_post(url: str, payload: dict) -> dict:
+        """Provide a test helper for fake http post."""
         return {"results": mock_results}
 
     source = MyCareersFutureSource(["data"], http_post=fake_http_post, enrich=False)
@@ -108,6 +117,7 @@ def test_fetch_skips_malformed_entries() -> None:
 
 
 def test_fetch_maps_salary_range() -> None:
+    """Verify the fetch maps salary range scenario."""
     today_iso = datetime.now().date().isoformat()
     item = {
         "uuid": "salary-job", "title": "Data Lead", "postedCompany": {"name": "Bank"},

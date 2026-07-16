@@ -5,29 +5,37 @@ from store.repository import SqliteRepository
 
 
 class FakeApplier:
+    """Group test scenarios for FakeApplier."""
     def __init__(self, approved: bool):
+        """Provide a test helper for init."""
         self.dry_run = False
         self.approved = approved
         self.calls = 0
 
     def is_approved(self, job):
+        """Provide a test helper for is approved."""
         return self.approved
 
     def apply(self, job):
+        """Provide a test helper for apply."""
         self.calls += 1
         return "submitted"
 
 
 class FakeQueue:
+    """Group test scenarios for FakeQueue."""
     def __init__(self):
+        """Provide a test helper for init."""
         self.items = []
 
     def add(self, draft):
+        """Provide a test helper for add."""
         self.items.append(draft)
         return "draft-id"
 
 
 def _raw():
+    """Provide a test helper for raw."""
     return RawJob(
         source="linkedin", company="Acme", title="Data Platform Lead",
         url="https://example.com/job", ats_type="linkedin",
@@ -36,6 +44,7 @@ def _raw():
 
 
 def test_explicitly_approved_tier_b_can_submit(monkeypatch):
+    """Verify the explicitly approved tier b can submit scenario."""
     monkeypatch.setattr("runner.final_score", lambda job, within_24h: 60.0)
     monkeypatch.setattr("runner.apply_tier", lambda job: "B")
     repo = SqliteRepository()
@@ -47,6 +56,7 @@ def test_explicitly_approved_tier_b_can_submit(monkeypatch):
 
 
 def test_unapproved_tier_b_stays_in_draft_queue(monkeypatch):
+    """Verify the unapproved tier b stays in draft queue scenario."""
     monkeypatch.setattr("runner.final_score", lambda job, within_24h: 60.0)
     monkeypatch.setattr("runner.apply_tier", lambda job: "B")
     repo = SqliteRepository()
@@ -62,6 +72,7 @@ def test_unapproved_tier_b_stays_in_draft_queue(monkeypatch):
 
 
 def test_tier_b_draft_uses_structured_achievement_bank(monkeypatch):
+    """Verify the tier b draft uses structured achievement bank scenario."""
     monkeypatch.setattr("runner.final_score", lambda job, within_24h: 60.0)
     monkeypatch.setattr("runner.apply_tier", lambda job: "B")
     queue = FakeQueue()
@@ -87,6 +98,7 @@ def test_tier_b_draft_uses_structured_achievement_bank(monkeypatch):
 
 
 def test_explicit_approval_can_promote_existing_draft(monkeypatch):
+    """Verify the explicit approval can promote existing draft scenario."""
     monkeypatch.setattr("runner.final_score", lambda job, within_24h: 60.0)
     monkeypatch.setattr("runner.apply_tier", lambda job: "B")
     repo = SqliteRepository()
@@ -104,6 +116,7 @@ def test_explicit_approval_can_promote_existing_draft(monkeypatch):
 
 
 def test_salary_floor_prevents_storage_and_application_actions(monkeypatch):
+    """Verify the salary floor prevents storage and application actions scenario."""
     monkeypatch.setattr("runner.final_score", lambda job, within_24h: 100.0)
     monkeypatch.setattr("runner.apply_tier", lambda job: "A")
     low_salary = _raw().model_copy(update={
@@ -124,6 +137,7 @@ def test_salary_floor_prevents_storage_and_application_actions(monkeypatch):
 
 
 def test_unknown_salary_remains_eligible(monkeypatch):
+    """Verify the unknown salary remains eligible scenario."""
     monkeypatch.setattr("runner.final_score", lambda job, within_24h: 60.0)
     monkeypatch.setattr("runner.apply_tier", lambda job: "C")
     repo = SqliteRepository()

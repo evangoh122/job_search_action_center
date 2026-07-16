@@ -4,6 +4,7 @@ from network.email_finder import HunterEmailFinder
 
 
 def _canned_hunter_payload() -> dict:
+    """Provide a test helper for canned hunter payload."""
     return {
         "data": {
             "domain": "acme.com",
@@ -20,10 +21,12 @@ def _canned_hunter_payload() -> dict:
 
 
 def _fake_http_get(url: str) -> dict:
+    """Provide a test helper for fake http get."""
     return _canned_hunter_payload()
 
 
 def test_find_people_returns_recruiter_and_manager():
+    """Verify the find people returns recruiter and manager scenario."""
     contacts = HunterEmailFinder("k", http_get=_fake_http_get).find_people("Acme")
     assert len(contacts) == 2
     recruiter = next(c for c in contacts if c.role_type == "recruiter")
@@ -33,11 +36,13 @@ def test_find_people_returns_recruiter_and_manager():
 
 
 def test_swe_excluded():
+    """Verify the swe excluded scenario."""
     contacts = HunterEmailFinder("k", http_get=_fake_http_get).find_people("Acme")
     assert "swe@acme.com" not in [c.email for c in contacts]
 
 
 def test_max_each_keeps_highest_confidence():
+    """Verify the max each keeps highest confidence scenario."""
     payload = _canned_hunter_payload()
     payload["data"]["emails"].append(
         {"value": "recruiter2@acme.com", "first_name": "Bob", "last_name": "Smith",
@@ -50,7 +55,9 @@ def test_max_each_keeps_highest_confidence():
 
 
 def test_failed_request_returns_empty():
+    """Verify the failed request returns empty scenario."""
     def _fail(url: str) -> dict:
+        """Provide a test helper for fail."""
         raise RuntimeError("network down")
 
     assert HunterEmailFinder("k", http_get=_fail).find_people("Acme") == []

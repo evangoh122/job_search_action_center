@@ -9,6 +9,7 @@ from networking_cli import render_review_packet
 
 
 def _target(**changes):
+    """Provide a test helper for target."""
     values = dict(
         contact_name="Jane Tan", contact_role="Head of AI Platform", company="Acme Bank",
         linkedin_url="https://linkedin.com/in/jane", shared_context="We both work in Singapore.",
@@ -23,6 +24,7 @@ def _target(**changes):
 
 
 def test_channel_drafts_are_specific_and_connection_note_fits_limit():
+    """Verify the channel drafts are specific and connection note fits limit scenario."""
     drafts = create_drafts(_target(), "Evan")
     assert len(drafts["linkedin_connection_note"]) <= 300
     assert "governed GenAI platform" in drafts["linkedin_follow_up"]
@@ -34,6 +36,7 @@ def test_channel_drafts_are_specific_and_connection_note_fits_limit():
 
 
 def test_coffee_chat_prep_has_opening_questions_close_and_follow_up():
+    """Verify the coffee chat prep has opening questions close and follow up scenario."""
     prep = create_coffee_chat_prep(_target(), "Evan")
     assert "without asking for a referral" in prep["objective"]
     assert "400 staff" in prep["opening"]
@@ -43,11 +46,13 @@ def test_coffee_chat_prep_has_opening_questions_close_and_follow_up():
 
 
 def test_missing_specific_context_is_rejected():
+    """Verify the missing specific context is rejected scenario."""
     with pytest.raises(ValueError, match="company_signal"):
         _target(company_signal="")
 
 
 def test_review_packet_is_explicitly_unsent():
+    """Verify the review packet is explicitly unsent scenario."""
     packet = render_review_packet([_target()], "Evan")
     assert "REVIEW REQUIRED" in packet
     assert "Nothing in this file was sent automatically" in packet
@@ -57,6 +62,7 @@ def test_review_packet_is_explicitly_unsent():
 
 
 def test_post_grounded_draft_cites_actual_post_and_personal_evidence():
+    """Verify the post grounded draft cites actual post and personal evidence scenario."""
     match = LinkedInPostMatch(
         id="j|p", job_id="j", job_key="k", company="Acme Bank",
         job_title="VP Data Platform", job_url="https://linkedin.com/jobs/view/1",
@@ -74,6 +80,7 @@ def test_post_grounded_draft_cites_actual_post_and_personal_evidence():
 
 
 def test_post_grounded_draft_blocks_generic_missing_context():
+    """Verify the post grounded draft blocks generic missing context scenario."""
     match = LinkedInPostMatch(
         id="j|p", job_id="j", job_key="k", company="Acme", job_title="Role",
         job_url="https://x", post_url="https://p", post_text="Hiring", confidence=1.0,
@@ -83,6 +90,7 @@ def test_post_grounded_draft_blocks_generic_missing_context():
 
 
 def test_referral_offer_draft_acknowledges_offer_without_presuming_referral():
+    """Verify the referral offer draft acknowledges offer without presuming referral scenario."""
     match = LinkedInPostMatch(
         id="j|p", job_id="j", job_key="k", company="Acme", job_title="Data Lead",
         job_url="https://x", post_url="https://p",

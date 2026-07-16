@@ -7,6 +7,7 @@ from store.repository import SqliteRepository
 
 
 def _job(job_id: str, dedupe_key: str) -> Job:
+    """Provide a test helper for job."""
     return Job(
         id=job_id,
         source="test",
@@ -18,6 +19,7 @@ def _job(job_id: str, dedupe_key: str) -> Job:
 
 
 def test_upsert_and_get_roundtrip():
+    """Verify the upsert and get roundtrip scenario."""
     repo = SqliteRepository()
     repo.upsert_job(_job("job-1", "acme|data scientist|u1"))
     got = repo.get_job("job-1")
@@ -27,6 +29,7 @@ def test_upsert_and_get_roundtrip():
 
 
 def test_dedupe_same_key():
+    """Verify the dedupe same key scenario."""
     repo = SqliteRepository()
     repo.upsert_job(_job("job-1", "acme|ds|u1"))
     repo.upsert_job(_job("job-2", "acme|ds|u1"))  # same dedupe_key
@@ -34,11 +37,13 @@ def test_dedupe_same_key():
 
 
 def test_upsert_contact():
+    """Verify the upsert contact scenario."""
     repo = SqliteRepository()
     repo.upsert_contact(Contact(id="c1", name="Jane", company_canonical="Acme"))
 
 
 def test_incr_and_count_actions():
+    """Verify the incr and count actions scenario."""
     repo = SqliteRepository()
     assert repo.count_actions("apply", "2026-06-19") == 0
     assert repo.incr_action("apply", "2026-06-19") == 1
@@ -48,6 +53,7 @@ def test_incr_and_count_actions():
 
 
 def test_linkedin_post_match_roundtrip():
+    """Verify the linkedin post match roundtrip scenario."""
     repo = SqliteRepository()
     match = LinkedInPostMatch(
         id="j1|p1", job_id="j1", job_key="acme|role", company="Acme",
@@ -61,6 +67,7 @@ def test_linkedin_post_match_roundtrip():
 
 @pytest.mark.parametrize("statuses", [("new", "applied"), ("applied", "new")])
 def test_legacy_key_migration_preserves_strongest_status(tmp_path, statuses):
+    """Verify the legacy key migration preserves strongest status scenario."""
     db = tmp_path / "jobs.sqlite"
     repo = SqliteRepository(str(db))
     jobs = [

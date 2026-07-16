@@ -8,6 +8,7 @@ from models import ApplicationDraft, Job
 
 
 def _job() -> Job:
+    """Provide a test helper for job."""
     return Job(
         id=str(uuid.uuid4()),
         source="test",
@@ -20,12 +21,14 @@ def _job() -> Job:
 
 
 def test_matched_keywords_primary_present():
+    """Verify the matched keywords primary present scenario."""
     kws = matched_keywords(_job())
     assert "machine learning" in kws
     assert "data science" in kws
 
 
 def test_tailor_returns_application_draft():
+    """Verify the tailor returns application draft scenario."""
     draft = tailor(_job(), base_summary="5 years of experience.", applicant_name="Alice")
     assert isinstance(draft, ApplicationDraft)
     assert "Acme Corp" in draft.cover_letter
@@ -38,6 +41,7 @@ def test_tailor_returns_application_draft():
 
 
 def test_tailor_can_attach_keyword_xyz_resume_variant():
+    """Verify the tailor can attach keyword xyz resume variant scenario."""
     draft = tailor(
         _job(),
         achievements=[
@@ -70,6 +74,7 @@ def test_tailor_can_attach_keyword_xyz_resume_variant():
 
 
 def test_resume_version_changes_when_rendered_resume_content_changes():
+    """Verify the resume version changes when rendered resume content changes scenario."""
     job = _job()
     first = ResumeAchievement(
         evidence_id="same-id", keyword="machine learning", result="Improved coverage",

@@ -3,6 +3,7 @@ from models import LinkedInPostMatch
 
 
 def _match():
+    """Provide a test helper for match."""
     return LinkedInPostMatch(
         id="j|p", job_id="j", job_key="k", company="Acme Bank",
         job_title="VP Data Platform", job_url="https://linkedin.com/jobs/view/123456",
@@ -14,6 +15,7 @@ def _match():
 
 
 def test_packet_contains_evidence_intent_and_grounded_draft():
+    """Verify the packet contains evidence intent and grounded draft scenario."""
     packet = render_packet(
         [_match()], "Evan", "scaled a governed platform to 400 users",
         "This is directly relevant to my regulated-bank platform work.",
@@ -26,6 +28,7 @@ def test_packet_contains_evidence_intent_and_grounded_draft():
 
 
 def test_packet_blocks_draft_without_personal_context():
+    """Verify the packet blocks draft without personal context scenario."""
     packet = render_packet([_match()], "Evan", "", "")
     assert "Draft blocked" in packet
     assert "generic outreach is intentionally not generated" in packet

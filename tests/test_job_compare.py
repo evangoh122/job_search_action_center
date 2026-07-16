@@ -4,10 +4,14 @@ from store.repository import SqliteRepository
 
 
 def _raw(source: str, url: str, title: str = "VP Data and Analytics") -> RawJob:
+    """Provide a test helper for raw."""
     return RawJob(source=source, company="DBS Bank", title=title, url=url)
 
 
 def test_store_listings_keeps_same_title_roles_distinct_without_requisition_evidence():
+    """Verify the store listings keeps same title roles distinct without requisition evidence
+    scenario.
+    """
     repo = SqliteRepository()
     added, duplicates = store_listings(repo, [
         _raw("linkedin", "https://li/1"),
@@ -20,6 +24,7 @@ def test_store_listings_keeps_same_title_roles_distinct_without_requisition_evid
 
 
 def test_import_history_marks_report_do_not_apply(tmp_path):
+    """Verify the import history marks report do not apply scenario."""
     repo = SqliteRepository()
     store_listings(repo, [_raw("linkedin", "https://li/1")])
     path = tmp_path / "history.csv"
@@ -34,6 +39,7 @@ def test_import_history_marks_report_do_not_apply(tmp_path):
 
 
 def test_report_surfaces_writeup_duplicate_candidates():
+    """Verify the report surfaces writeup duplicate candidates scenario."""
     repo = SqliteRepository()
     writeup = (
         "Build and lead the data analytics platform. Own architecture, governance, delivery, "
@@ -53,6 +59,7 @@ def test_report_surfaces_writeup_duplicate_candidates():
 
 
 def test_store_listings_auto_merges_similar_title_and_description_with_salary():
+    """Verify the store listings auto merges similar title and description with salary scenario."""
     writeup = (
         "Lead the regional governed data platform, architecture, cloud migration, controls, "
         "delivery roadmap, stakeholder management, and an engineering organization. "

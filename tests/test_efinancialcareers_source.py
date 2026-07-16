@@ -11,6 +11,7 @@ _OLD = (datetime.now() - timedelta(days=60)).date().isoformat()
 
 
 def _html_with_json_ld() -> str:
+    """Provide a test helper for html with json ld."""
     jobs = {
         "@context": "https://schema.org",
         "@graph": [
@@ -45,6 +46,7 @@ def _html_with_json_ld() -> str:
 
 
 def test_fetch_maps_json_ld_jobs_and_filters_title_and_age() -> None:
+    """Verify the fetch maps json ld jobs and filters title and age scenario."""
     source = EFinancialCareersSource(["data"], http_get=lambda url: _html_with_json_ld())
     jobs = source.fetch()
 
@@ -60,6 +62,7 @@ def test_fetch_maps_json_ld_jobs_and_filters_title_and_age() -> None:
 
 
 def test_fetch_parses_embedded_app_json_and_dedupes_across_terms() -> None:
+    """Verify the fetch parses embedded app json and dedupes across terms scenario."""
     payload = {
         "props": {
             "pageProps": {
@@ -80,6 +83,7 @@ def test_fetch_parses_embedded_app_json_and_dedupes_across_terms() -> None:
     calls: list[str] = []
 
     def fake_get(url: str) -> str:
+        """Provide a test helper for fake get."""
         calls.append(url)
         return html
 
@@ -93,6 +97,7 @@ def test_fetch_parses_embedded_app_json_and_dedupes_across_terms() -> None:
 
 
 def test_location_filter() -> None:
+    """Verify the location filter scenario."""
     payload = {
         "@type": "JobPosting",
         "title": "Data Scientist",
@@ -109,6 +114,7 @@ def test_location_filter() -> None:
 
 
 def test_location_filter_rejects_missing_location() -> None:
+    """Verify the location filter rejects missing location scenario."""
     payload = {
         "@type": "JobPosting", "title": "Data Scientist",
         "hiringOrganization": {"name": "Global Bank"},
@@ -120,7 +126,9 @@ def test_location_filter_rejects_missing_location() -> None:
 
 
 def test_failed_fetch_is_skipped() -> None:
+    """Verify the failed fetch is skipped scenario."""
     def boom(url: str) -> str:
+        """Provide a test helper for boom."""
         raise RuntimeError("blocked")
 
     source = EFinancialCareersSource(["data"], http_get=boom)
@@ -129,6 +137,7 @@ def test_failed_fetch_is_skipped() -> None:
 
 
 def test_uses_current_slug_search_url() -> None:
+    """Verify using current slug search url."""
     calls: list[str] = []
     source = EFinancialCareersSource(
         ["Data Analytics"],

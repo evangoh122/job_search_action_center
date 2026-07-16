@@ -13,6 +13,7 @@ def _fake(messages: dict[str, dict]):
     calls: list[str] = []
 
     def http(method: str, url: str, body: dict | None) -> dict:
+        """Provide a test helper for http."""
         calls.append(url)
         if "/messages/" in url:  # single-message metadata
             msg_id = url.split("/messages/")[1].split("?")[0]
@@ -24,6 +25,7 @@ def _fake(messages: dict[str, dict]):
 
 
 def test_received_extracts_sender():
+    """Verify the received extracts sender scenario."""
     msgs = {"m1": {"From": "Jane Tan <jane@dbs.com>", "To": "me@x.com", "Date": "Mon, 1 Jun 2026 10:00:00 +0800"}}
     scraper = GmailNetworkScraper(token="t", user_email="me@x.com", http=_fake(msgs)[0])
     contacts = scraper.scrape()
@@ -37,6 +39,7 @@ def test_received_extracts_sender():
 
 
 def test_sent_extracts_recipients_not_self():
+    """Verify the sent extracts recipients not self scenario."""
     msgs = {"m1": {"From": "me@x.com", "To": "Sam Lee <sam@acme.com>, me@x.com",
                    "Cc": "ria@acme.com", "Date": "Tue, 2 Jun 2026 09:00:00 +0000"}}
     scraper = GmailNetworkScraper(token="t", user_email="me@x.com", http=_fake(msgs)[0])
@@ -45,6 +48,7 @@ def test_sent_extracts_recipients_not_self():
 
 
 def test_automated_senders_skipped():
+    """Verify the automated senders skipped scenario."""
     msgs = {
         "m1": {"From": "no-reply@linkedin.com", "Date": "Wed, 3 Jun 2026 09:00:00 +0000"},
         "m2": {"From": "Recruiter <ana@bank.com>", "Date": "Wed, 3 Jun 2026 09:00:00 +0000"},
@@ -55,6 +59,7 @@ def test_automated_senders_skipped():
 
 
 def test_dedupe_keeps_most_recent_and_backfills_name():
+    """Verify the dedupe keeps most recent and backfills name scenario."""
     msgs = {
         "m1": {"From": "jane@dbs.com", "Date": "Mon, 1 Jun 2026 10:00:00 +0000"},          # no name, older
         "m2": {"From": "Jane Tan <jane@dbs.com>", "Date": "Fri, 5 Jun 2026 10:00:00 +0000"},  # name, newer
@@ -67,6 +72,7 @@ def test_dedupe_keeps_most_recent_and_backfills_name():
 
 
 def test_query_passed_through_and_capped():
+    """Verify the query passed through and capped scenario."""
     msgs = {f"m{i}": {"From": f"p{i}@acme.com", "Date": "Mon, 1 Jun 2026 10:00:00 +0000"}
             for i in range(5)}
     http, calls = _fake(msgs)
@@ -78,6 +84,7 @@ def test_query_passed_through_and_capped():
 
 
 def test_helpers():
+    """Verify the helpers scenario."""
     assert _is_automated("", "noreply@x.com")
     assert not _is_automated("Jane", "jane@dbs.com")
     assert _company_from_email("a@gmail.com") == ""          # free provider

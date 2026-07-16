@@ -9,6 +9,7 @@ from models import ApplicationDraft
 
 
 def test_add_creates_jsonl_with_draft(tmp_path: Path):
+    """Verify the add creates jsonl with draft scenario."""
     queue = ApplicationDraftQueue(str(tmp_path / "q.jsonl"))
     draft = ApplicationDraft(
         job_id=str(uuid.uuid4()),

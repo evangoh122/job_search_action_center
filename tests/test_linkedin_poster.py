@@ -6,12 +6,15 @@ from network.linkedin_poster import LinkedInPosterFinder
 
 
 def _http(items: list):
+    """Provide a test helper for http."""
     def _post(url: str, body: dict) -> list:
+        """Provide a test helper for post."""
         return items
     return _post
 
 
 def test_find_poster_returns_recruiter_contact():
+    """Verify the find poster returns recruiter contact scenario."""
     items = [{
         "jobPosterName": "Jane Doe",
         "jobPosterTitle": "Technical Recruiter",
@@ -27,6 +30,7 @@ def test_find_poster_returns_recruiter_contact():
 
 
 def test_manager_classified_as_hiring_manager():
+    """Verify the manager classified as hiring manager scenario."""
     items = [{"jobPosterName": "Sam Lee", "jobPosterTitle": "Engineering Manager",
               "jobPosterProfileUrl": "https://linkedin.com/in/sam", "companyName": "Acme"}]
     c = LinkedInPosterFinder("fake", http_post=_http(items)).find_poster("https://x/123")
@@ -35,6 +39,7 @@ def test_manager_classified_as_hiring_manager():
 
 
 def test_items_without_poster_name_skipped():
+    """Verify the items without poster name skipped scenario."""
     items = [
         {"jobPosterTitle": "Technical Recruiter", "companyName": "Acme"},
         {"jobPosterName": None, "companyName": "Acme"},
@@ -44,7 +49,9 @@ def test_items_without_poster_name_skipped():
 
 
 def test_exception_returns_none():
+    """Verify the exception returns none scenario."""
     def _fail(url: str, body: dict) -> list:
+        """Provide a test helper for fail."""
         raise RuntimeError("network error")
 
     assert LinkedInPosterFinder("fake", http_post=_fail).find_poster("https://x/123") is None

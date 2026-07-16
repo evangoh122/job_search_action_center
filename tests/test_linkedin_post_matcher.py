@@ -3,6 +3,7 @@ from network.linkedin_post_matcher import LinkedInPostMatcher, linkedin_job_ids,
 
 
 def _job():
+    """Provide a test helper for job."""
     return Job(
         id="j1", source="linkedin", company_canonical="Acme Bank",
         dedupe_key="acme bank|vp data platform", title="VP Data Platform",
@@ -12,6 +13,7 @@ def _job():
 
 
 def _item(content, **changes):
+    """Provide a test helper for item."""
     value = {
         "id": "post1", "linkedinUrl": "https://linkedin.com/posts/jane-activity-123",
         "content": content,
@@ -24,6 +26,7 @@ def _item(content, **changes):
 
 
 def test_exact_job_link_is_certain_even_with_short_post():
+    """Verify the exact job link is certain even with short post scenario."""
     item = _item("We are hiring — details here", attachments=[{
         "url": "https://www.linkedin.com/jobs/view/4321098765"}])
     match = score_post(_job(), item)
@@ -34,6 +37,7 @@ def test_exact_job_link_is_certain_even_with_short_post():
 
 
 def test_title_company_and_hiring_language_create_review_candidate():
+    """Verify the title company and hiring language create review candidate scenario."""
     match = score_post(
         _job(), _item("Acme Bank is hiring a VP Data Platform to join our team."))
     assert match is not None
@@ -43,10 +47,12 @@ def test_title_company_and_hiring_language_create_review_candidate():
 
 
 def test_generic_company_post_does_not_match_vacancy():
+    """Verify the generic company post does not match vacancy scenario."""
     assert score_post(_job(), _item("Acme Bank published its annual report.")) is None
 
 
 def test_explicit_referral_offer_is_classified_separately():
+    """Verify the explicit referral offer is classified separately scenario."""
     match = score_post(
         _job(), _item("Acme Bank has a VP Data Platform opening. Happy to refer qualified people."))
     assert match is not None
@@ -55,10 +61,12 @@ def test_explicit_referral_offer_is_classified_separately():
 
 
 def test_job_id_extraction_accepts_slug_and_plain_urls():
+    """Verify the job id extraction accepts slug and plain urls scenario."""
     assert linkedin_job_ids(_job()) == {"4321098765"}
 
 
 def test_actor_request_is_bounded_and_uses_documented_fields():
+    """Verify the actor request is bounded and uses documented fields scenario."""
     calls = []
     matcher = LinkedInPostMatcher(
         "token", max_posts=7,
@@ -78,6 +86,7 @@ def test_actor_request_is_bounded_and_uses_documented_fields():
 
 
 def test_long_title_query_remains_balanced_and_within_actor_limit():
+    """Verify the long title query remains balanced and within actor limit scenario."""
     job = _job()
     job.title = "Very " * 40
     query = LinkedInPostMatcher.queries(job)[0]
