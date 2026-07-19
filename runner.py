@@ -17,7 +17,6 @@ from config import DAILY_CAPS, MINIMUM_MONTHLY_SGD
 from exclusions import is_excluded_company
 from models import Job, RawJob
 from matching import find_duplicate_job, job_identity_key, merge_jobs
-from network.email_finder import HunterEmailFinder
 from network.outreach import build_drafts
 from routing import apply_tier, should_outreach
 from salary import SalaryRange, is_below_monthly_sgd_floor
@@ -206,16 +205,6 @@ def _run_apply_a(job, repo, auto_applier, day) -> str:
     return result
 
 
-def _track_application_package(draft, tracker) -> None:
-    """Track application package."""
-    if tracker is None:
-        return
-    try:
-        tracker.upsert_application(draft)
-    except Exception:
-        logger.warning("Sheets application-package upsert failed for %s", draft.title, exc_info=True)
-
-
 def _run_apply_b(
     job,
     repo,
@@ -234,7 +223,6 @@ def _run_apply_b(
         return 0
     draft = tailor(job, base_summary, applicant_name, achievements=achievements)
     apply_queue.add(draft)
-    _track_application_package(draft, tracker)
     repo.incr_action("drafts", day)
     return 1
 
@@ -315,11 +303,9 @@ def run(
         # Track 1 — apply
         duplicate_in_run = job.dedupe_key in seen_this_run
         seen_this_run.add(job.dedupe_key)
-        approved_live = (
-            auto_applier is not None
-            and not auto_applier.dry_run
-            and auto_applier.is_approved(job)
-        )
+        # Discovery is draft-only. Browser actions are reachable solely through the
+        # exact-package commands in application_cli.py.
+        approved_live = False
         status = job.status.casefold()
         terminal_status = status in {
             "submission_unknown", "submitted", "applied", "interviewing", "offer",
@@ -331,9 +317,6 @@ def run(
         if not duplicate_in_run and not application_already_handled and job.tier == "A":
             counts["tier_a"] += 1
             result = _run_apply_a(job, repo, auto_applier, day)
-            attempted_draft = getattr(auto_applier, "last_draft", None)
-            if attempted_draft is not None:
-                _track_application_package(attempted_draft, tracker)
             if result == "submitted":
                 job.status = "applied"
             elif result == "submission_unknown":
@@ -342,6 +325,7 @@ def run(
             if result in {
                 "unsupported", "disabled", "incomplete", "approval_required",
                 "review_required", "captcha_required", "salary_review_required", "error",
+                "review_engine_required",
             }:
                 drafted = 0
                 if status == "new":
@@ -356,9 +340,6 @@ def run(
             # Tier B remains draft-only unless this exact job has explicit approval and
             # live mode is enabled. Approval never broadens to another vacancy.
             result = _run_apply_a(job, repo, auto_applier, day) if approved_live else "draft"
-            attempted_draft = getattr(auto_applier, "last_draft", None)
-            if approved_live and attempted_draft is not None:
-                _track_application_package(attempted_draft, tracker)
             if result == "submitted":
                 job.status = "applied"
                 repo.upsert_job(job)
@@ -520,12 +501,12 @@ def _load_resume_achievements_from_env() -> list[ResumeAchievement]:
 
 
 def _build_auto_applier_from_env(achievements: list[ResumeAchievement] | None = None):
-    """Build the approval-gated browser applier from local/CI environment settings."""
+    """Build the drafting applier; live browser actions require review-engine packages."""
     import json
     import os
     from pathlib import Path
 
-    from apply.auto_apply import AutoApplier, load_approval_keys, load_salary_override_keys
+    from apply.auto_apply import AutoApplier
     from models import Applicant
 
     answers_raw = os.environ.get("APPLICATION_ANSWERS_JSON", "")
@@ -556,22 +537,17 @@ def _build_auto_applier_from_env(achievements: list[ResumeAchievement] | None = 
         salary_expectation=os.environ.get("APPLICANT_SALARY_EXPECTATION", ""),
         answers=answers,
     )
-    browser_submitter = None
-    if os.environ.get("AUTO_APPLY_BROWSER", "").lower() == "true":
-        from apply.browser_submitter import PlaywrightSubmitter
-
-        browser_submitter = PlaywrightSubmitter(
-            user_data_dir=os.environ.get("AUTO_APPLY_BROWSER_PROFILE", "data/browser_profile"),
-            headless=os.environ.get("AUTO_APPLY_HEADLESS", "").lower() == "true",
-            submit=True,
+    if os.environ.get("AUTO_APPLY_LIVE", "").lower() == "true":
+        logger.warning(
+            "AUTO_APPLY_LIVE is ignored: use application_cli.py prepare/review/approve/open "
+            "so approval is bound to an immutable package."
         )
-    approvals_file = os.environ.get("AUTO_APPLY_APPROVALS_FILE")
     return AutoApplier(
         applicant,
-        dry_run=os.environ.get("AUTO_APPLY_LIVE", "").lower() != "true",
-        submitter=browser_submitter,
-        approved_job_keys=load_approval_keys(approvals_file),
-        salary_override_job_keys=load_salary_override_keys(approvals_file),
+        dry_run=True,
+        submitter=None,
+        approved_job_keys=set(),
+        salary_override_job_keys=set(),
         base_summary=os.environ.get("RESUME_SUMMARY", ""),
         draft_sink=ApplicationDraftQueue(
             os.environ.get("APPLICATION_DRAFTS_PATH", "data/application_drafts.jsonl")

@@ -2,15 +2,12 @@
 
 ## Safety model
 
-The application system has three independent gates:
-
-1. The routing pipeline must classify the role as Tier A, or the applicant must explicitly
-   approve that exact Tier-B role.
-2. `AUTO_APPLY_LIVE=true` must explicitly enable live mode.
-3. The exact job id or dedupe key must be present in the local approvals file.
-
-Unapproved Tier-B roles remain draft-only. Dry-run remains the default. CAPTCHA, missing required questions, an unconfirmed success page,
-or an unsupported form returns the role to human review and does not mark it applied.
+The application system uses an exact-package gate. A role may be discovered or drafted without
+authority to apply. Browser autofill requires an immutable package containing the exact vacancy,
+answers, cover letter, structurally valid two-page PDF, visual-QA receipt, Drive archive, and
+authoritative Sheets row. Approval is short-lived, single-use, and bound to that package hash.
+CAPTCHA, missing required questions, changed remote evidence, or a changed PDF blocks progress.
+Only the applicant clicks the employer's final Submit control and records the result afterward.
 
 Greenhouse and Lever expose application APIs for employers building their own careers sites,
 but those submission endpoints require employer-owned API credentials. This project therefore
@@ -47,6 +44,9 @@ RESUME_URL=
 APPLICATION_ANSWERS_JSON=data\application_answers.json
 ```
 
+`RESUME_PATH` must reference the exact final PDF. The deterministic application harness rejects
+DOCX, missing files, and files merely renamed to `.pdf`; there is no fallback résumé upload.
+
 Copy `config/application_answers.example.json` to ignored `data/application_answers.json` and
 use each form's visible question label as the JSON key. Never invent an answer; ambiguous or
 unmatched questions remain for review.
@@ -54,53 +54,32 @@ unmatched questions remain for review.
 ## Review and approve jobs
 
 ```powershell
-python -m application_cli eligible
-python -m application_cli approve "<dedupe-key-from-the-list>"
-python -m application_cli salary-override "<dedupe-key>"  # only after explicit salary review
-python -m application_cli list
-python -m application_cli revoke "<dedupe-key>"
+python application_cli.py eligible
+python resume_page_gate.py "<final-resume.pdf>" --record-visual-qa --reviewer "Evan Goh"
+python application_cli.py prepare "<job-id-or-dedupe-key>" --resume "<final-resume.pdf>" --salary-reviewed
+python application_cli.py show "<package-id>"
+python application_cli.py approve "<package-id>"
+python application_cli.py open "<package-id>"
+python application_cli.py record-submitted "<package-id>"
 ```
 
-The default approval file is ignored `data/application_approvals.json`.
-`eligible` includes new, queued, drafted, and approved Tier-A/B roles. Explicit approval can
-promote an existing draft to browser submission; terminal roles are never resubmitted.
-An approval does not bypass the salary gate. Live submission additionally requires a conclusive
-SGD monthly-equivalent range reaching S$12,000, or a separately recorded per-vacancy
-`salary-override`. Unknown salary is still discoverable and draftable, but not auto-submittable.
-For the protected workflow, set its `salary_override` checkbox only after completing that review;
-the workflow records the override against the dispatched job key before browser execution.
+Use `--salary-reviewed` only after personally reviewing an unknown or unparseable salary. The
+approval is bound to the immutable package ID, exact PDF SHA-256, exact answers, cover letter,
+vacancy, Drive archive, and authoritative Google Sheets row. It expires and is single-use.
 
 ## Preview first
 
-Keep live mode disabled:
-
-```dotenv
-AUTO_APPLY_LIVE=false
-AUTO_APPLY_BROWSER=false
-AUTO_APPLY_APPROVALS_FILE=data/application_approvals.json
-```
-
-Run `python -m runner`. Tier-A applications are prepared as dry runs without opening a browser
-or submitting anything.
+Background discovery and `runner.py` are draft-only. Drafts stay in the local review queue and
+never enter the authoritative Google Sheets `Applications` tab. Only `application_cli.py prepare`
+can create the exact reviewed package and sync its Drive/Sheets evidence.
 
 ## Approved browser submission
 
-Only after reviewing the exact job and profile:
-
-```dotenv
-AUTO_APPLY_LIVE=true
-AUTO_APPLY_BROWSER=true
-AUTO_APPLY_APPROVALS_FILE=data/application_approvals.json
-AUTO_APPLY_HEADLESS=false
-AUTO_APPLY_BROWSER_PROFILE=data/browser_profile
-```
-
-Prefer the protected `Approved application` workflow for live execution. If validating on the
-dedicated self-hosted runner, keep the browser visible (`HEADLESS=false`).
-The browser fills standard fields, custom label-based answers, and the local resume. It clicks
-Submit only for an approved job and marks it applied only when a confirmation message is found.
-If the submit click succeeds but no confirmation is recognized, the job is stored as
-`submission_unknown` and is never retried automatically.
+`open` launches a visible browser, revalidates remote Drive and Sheets authority, stages the exact
+approved PDF bytes, recomputes their SHA-256, structurally parses the staged PDF, and only then
+passes that staged file to the employer file input. It fills supported fields and pauses. It never
+clicks the employer's final Submit control. The applicant reviews the form and clicks Submit.
+Afterward, record `record-submitted`; use `record-unknown` if the outcome is uncertain.
 
 ## Platform expectations
 
@@ -112,19 +91,19 @@ If the submit click succeeds but no confirmation is recognized, the job is store
 - MyCareersFuture: Singpass/account steps and declarations require the applicant's participation.
 - Any CAPTCHA stops automation.
 
-Always inspect the application confirmation and tracker status after a live run.
+Always inspect the application confirmation and tracker status after manual submission.
 
-Every prepared application also creates a tailored cover-letter package in the local
-`data/application_drafts.jsonl` review queue. When Google Sheets is configured, the same package
-is upserted into the `Applications` tab with its job key, application link, resume filename,
-matched keywords, cover letter, status, and update time. Browser-assisted forms attempt to fill
-a visible cover-letter text area; unsupported file-only or custom fields remain for review.
+Discovery may create a tailored cover-letter draft in the local `data/application_drafts.jsonl`
+review queue. It is not an authoritative application. The `Applications` Sheet accepts only a
+passing immutable package with complete package/resume/answer hashes, two-page proof, and verified
+Drive file ID, link, and PDF archive name. Unsupported form fields remain for human review.
 
 When a structured achievement bank is available, the local application draft also records the
 resume fit brief, required/preferred keyword-to-evidence map, selected evidence with rubric scores,
 evidence gaps, wording change log, and pagination status. Generated content remains
-`two-page-targeted` until the approved Word template is rendered and visually verified; the
-generator never treats keyword overlap as permission to invent evidence.
+blocked until the exact final PDF renders to two pages and has a hash-bound visual-QA receipt; a
+`two-page-targeted` label is never sufficient. The generator never treats keyword overlap as
+permission to invent evidence.
 
 Each draft includes a stable `resume_version_id` and the selected `resume_evidence_ids`, allowing
 the JSONL queue to record which evidence-backed version was prepared for each vacancy.
@@ -134,7 +113,7 @@ the JSONL queue to record which evidence-backed version was prepared for each va
 Audit the rendered Word resume before submission:
 
 ```powershell
-python -m resume_audit_cli "resume\Evan Goh - CV 051226.docx" `
+python -m resume_audit_cli "<updated-master-resume-path>" `
   --keyword "data governance" --keyword "generative ai"
 ```
 

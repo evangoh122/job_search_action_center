@@ -1,15 +1,14 @@
-"""Optional Playwright autofill for public hosted application forms.
+"""Visible-browser autofill for reviewed public application packages.
 
-Playwright is imported lazily so the core tracker has no browser dependency. The submitter
-only clicks Submit after AutoApplier has verified a per-job approval key.
+The browser boundary deliberately never clicks an employer's final Submit control.
 """
 from __future__ import annotations
 
 import logging
-import re
 from pathlib import Path
 
 from apply.ats import ApplicationPlan
+from apply.resume_artifact import stage_approved_resume_pdf
 from models import Applicant, Job
 
 logger = logging.getLogger(__name__)
@@ -32,20 +31,20 @@ _FIELD_SELECTORS = {
 }
 
 
-class PlaywrightSubmitter:
-    """Represent playwright submitter."""
+class PlaywrightApplicationFiller:
+    """Autofill an application and pause for the applicant's final review and submit."""
     def __init__(
         self,
         *,
         user_data_dir: str = "data/browser_profile",
         headless: bool = False,
-        submit: bool = True,
+        wait_for_user: bool = True,
         screenshot_dir: str = "data/application_screenshots",
     ) -> None:
         """Initialize the instance."""
         self.user_data_dir = user_data_dir
         self.headless = headless
-        self.submit = submit
+        self.wait_for_user = wait_for_user
         self.screenshot_dir = Path(screenshot_dir)
 
     @staticmethod
@@ -134,33 +133,30 @@ class PlaywrightSubmitter:
             page.goto(plan.form_url, wait_until="domcontentloaded", timeout=60_000)
             self._fill_fields(page, plan)
             if plan.resume_path:
-                resume = Path(plan.resume_path)
-                if resume.exists():
+                with stage_approved_resume_pdf(plan.resume_path, plan.resume_sha256) as resume:
                     upload = page.locator("input[type='file']")
                     if upload.count():
-                        upload.first.set_input_files(str(resume.resolve()))
+                        upload.first.set_input_files(str(resume))
             page.wait_for_timeout(1_000)
             self._screenshot(page, job)
             if self._has_captcha(page):
                 context.close()
                 return "captcha_required"
-            if self._missing_required(page) or not self.submit:
+            if self._missing_required(page):
                 context.close()
                 return "review_required"
 
-            submit = page.get_by_role("button", name="Submit", exact=False)
-            if submit.count() == 0:
-                submit = page.locator("button[type='submit'], input[type='submit']")
-            if submit.count() == 0:
-                context.close()
-                return "review_required"
-            submit.first.click()
-            page.wait_for_timeout(2_000)
-            confirmation = page.get_by_text(re.compile(
-                r"application (?:has been )?(?:submitted|received)|thank you for applying",
-                re.IGNORECASE,
-            ))
-            submitted = confirmation.count() > 0
+            # Keep the visible browser open while the human reviews every field and owns
+            # the employer's final Submit action. Pressing Enter only closes our browser.
+            if self.wait_for_user:
+                try:
+                    input("Review the form, submit it yourself if correct, then press Enter here to close: ")
+                except EOFError:
+                    pass
             self._screenshot(page, job)
             context.close()
-            return "submitted" if submitted else "submission_unknown"
+            return "ready_for_manual_submit"
+
+
+# Backward-compatible import name. It now has fill-only behavior.
+PlaywrightSubmitter = PlaywrightApplicationFiller

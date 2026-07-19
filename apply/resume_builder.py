@@ -190,24 +190,10 @@ def _achievement_score(
     return -score, best_index, best_keyword, "; ".join(reasons)
 
 
-def _format_keyword_xyz(keyword: str, achievement: ResumeAchievement) -> str:
-    """Format keyword xyz."""
-    key = _clean(keyword or achievement.keyword).lower()
-    for term, display in {
-        "ai": "AI",
-        "api": "API",
-        "apac": "APAC",
-        "fx": "FX",
-        "kpi": "KPI",
-        "llm": "LLM",
-        "python": "Python",
-        "sql": "SQL",
-    }.items():
-        key = re.sub(rf"\b{term}\b", display, key)
-    result = _clean(achievement.result).rstrip(".")
-    metric = _clean(achievement.metric).rstrip(".")
-    method = _clean(achievement.method).rstrip(".")
-    return f"{key}: {result}, measured by {metric}, by {method}."
+def _exact_master_block(keyword: str, achievement: ResumeAchievement) -> str:
+    """Return the authoritative block verbatim; never compose application claims."""
+    del keyword
+    return achievement.block_text
 
 
 def build_resume_variant(
@@ -218,10 +204,10 @@ def build_resume_variant(
     include_tags: set[str] | None = None,
     exclude_tags: set[str] | None = None,
 ) -> ResumeVariant:
-    """Build a job-targeted resume excerpt using `keyword: X measured by Y by doing Z`.
+    """Build a targeted excerpt by selecting and reordering exact master-resume blocks.
 
-    Achievements without all three XYZ parts are skipped because partial evidence invites
-    fabricated metrics or vague resume bullets.
+    XYZ fields inform relevance only. They are never rendered into application copy. Evidence
+    lacking exact master-resume text, provenance, or an intact hash is rejected fail-closed.
     """
     selected = select_resume_keywords(job, limit=keyword_limit)
     achievement_keywords = _achievement_keywords_for_job(job, achievements)
@@ -229,6 +215,8 @@ def build_resume_variant(
     job_text = f"{job.title} {job.description}".lower()
     ranked: list[tuple[float, int, str, ResumeAchievement, str]] = []
     for achievement in achievements:
+        if not achievement.has_verified_master_block():
+            continue
         if achievement.disclosure_constraints.strip():
             continue
         labels = {achievement.keyword.lower(), *(tag.lower() for tag in achievement.tags)}
@@ -246,15 +234,17 @@ def build_resume_variant(
 
     ranked.sort(key=lambda item: (item[0], item[1], item[3].keyword.lower()))
     bullets = [
-        _format_keyword_xyz(keyword, achievement)
+        _exact_master_block(keyword, achievement)
         for _, _, keyword, achievement, _ in ranked[:bullet_limit]
     ]
     selected_rows = [
         SelectedEvidence(
             evidence_id=achievement.evidence_id,
             source=achievement.source,
+            provenance=achievement.provenance,
+            block_hash=achievement.block_hash,
             keyword=keyword,
-            bullet=_format_keyword_xyz(keyword, achievement),
+            bullet=_exact_master_block(keyword, achievement),
             relevance=relevance,
             score=-score,
         )
@@ -284,9 +274,9 @@ def build_resume_variant(
         if not mapping.use_in_resume
     ]
     change_log = [
-        "Selected and reordered achievements using job-outcome, capability, domain, measurement, and ownership evidence.",
-        "Excluded incomplete XYZ achievements and evidence without a defensible connection to the vacancy.",
-        "Rendered evidence-bank bullets retain visible keyword labels; remove labels only when assembling the human-readable template.",
+        "Selected and reordered exact master-resume blocks using job-outcome, capability, domain, measurement, and ownership evidence.",
+        "Rejected evidence without verbatim block text, master-resume provenance, or a matching SHA-256 hash.",
+        "Preserved every selected block byte-for-byte; no application bullet was rewritten or synthesized.",
     ]
     return ResumeVariant(
         job_id=job.id,

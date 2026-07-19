@@ -19,6 +19,7 @@ class ApplicationPlan:
     form_url: str
     fields: dict[str, str]
     resume_path: str = ""
+    resume_sha256: str = ""
 
 
 def _split_name(name: str) -> tuple[str, str]:

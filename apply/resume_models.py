@@ -1,6 +1,16 @@
 from __future__ import annotations
 
-from pydantic import BaseModel, Field
+import hashlib
+
+from pydantic import BaseModel, Field, model_validator
+
+
+MASTER_RESUME_PROVENANCE = "master resume"
+
+
+def resume_block_hash(block_text: str) -> str:
+    """Return the SHA-256 fingerprint of an exact master-resume block."""
+    return hashlib.sha256(block_text.encode("utf-8")).hexdigest()
 
 
 class ResumeAchievement(BaseModel):
@@ -16,8 +26,33 @@ class ResumeAchievement(BaseModel):
     tags: list[str] = Field(default_factory=list)
     evidence_id: str = ""
     source: str = ""
+    block_text: str = ""
+    provenance: str = ""
+    block_hash: str = ""
     role_families: list[str] = Field(default_factory=list)
     disclosure_constraints: str = ""
+
+    @model_validator(mode="after")
+    def populate_exact_block_metadata(self) -> ResumeAchievement:
+        """Fill only metadata that can be derived without changing resume content.
+
+        ``source="master resume"`` is the sole legacy provenance bridge. Structured XYZ
+        fields are deliberately never rendered back into a block: they are useful for
+        ranking, but they are not an authoritative copy of the master resume.
+        """
+        if not self.provenance and self.source.strip().casefold() == MASTER_RESUME_PROVENANCE:
+            self.provenance = MASTER_RESUME_PROVENANCE
+        if self.block_text and not self.block_hash:
+            self.block_hash = resume_block_hash(self.block_text)
+        return self
+
+    def has_verified_master_block(self) -> bool:
+        """Whether this evidence is an untampered, exact master-resume block."""
+        return bool(
+            self.block_text
+            and self.provenance.strip().casefold() == MASTER_RESUME_PROVENANCE
+            and self.block_hash == resume_block_hash(self.block_text)
+        )
 
 
 class FitBrief(BaseModel):
@@ -39,6 +74,8 @@ class SelectedEvidence(BaseModel):
     """Represent selected evidence."""
     evidence_id: str = ""
     source: str = ""
+    provenance: str = ""
+    block_hash: str = ""
     keyword: str
     bullet: str
     relevance: str

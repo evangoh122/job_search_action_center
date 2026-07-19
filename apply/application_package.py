@@ -18,8 +18,11 @@ def company_abbreviation(company: str) -> str:
     return "".join(t[0].upper() for t in meaningful)
 
 
-def resume_filename(company: str, today: date | None = None, extension: str = "docx") -> str:
-    """Return Evan_Resume{mmddyyyy}_{COMPANY_ABBR}[.extension]."""
+def resume_filename(company: str, today: date | None = None, extension: str = "pdf") -> str:
+    """Return the deterministic PDF-only application résumé filename."""
     day = today or date.today()
-    suffix = f".{extension.lstrip('.')}" if extension else ""
+    normalized = extension.lstrip(".").casefold()
+    if normalized != "pdf":
+        raise ValueError("application résumé filenames are PDF-only")
+    suffix = ".pdf"
     return f"Evan_Resume{day:%m%d%Y}_{company_abbreviation(company)}{suffix}"

@@ -25,13 +25,22 @@ spreadsheets scope and the spreadsheet shared with the service-account email.
 from __future__ import annotations
 
 import logging
+import os
+import hashlib
 from collections.abc import Callable
+from contextlib import contextmanager
 from datetime import datetime
+from pathlib import Path
+from zoneinfo import ZoneInfo
 from urllib.parse import quote
 
 import httpx
 
 from models import ApplicationDraft, Contact, EmailDraft, Job, LinkedInPostMatch
+from apply.resume_artifact import require_final_resume_filename
+from apply.resume_artifact import require_final_resume_pdf
+from resume_page_gate import require_two_page_resume
+from store.google_drive_resume_archive import ResumeArchiveRecord
 
 logger = logging.getLogger(__name__)
 
@@ -47,8 +56,16 @@ CONTACTS_HEADERS = ["Key", "Name", "Email", "Company", "Role", "Type",
 OUTREACH_HEADERS = ["Key", "Subject", "Body", "To", "Status", "Date", "Job", "Contact"]
 NETWORKING_HEADERS = ["Key", "Name", "Email", "Company", "Role", "LinkedIn",
                       "Source", "Last Contacted", "Status", "Notes"]
-APPLICATIONS_HEADERS = ["Key", "Job", "Company", "Title", "Application Link",
-                        "Resume File", "Cover Letter", "Matched Keywords", "Status", "Updated"]
+APPLICATIONS_HEADERS = [
+    "Key", "Job", "Company", "Title", "Application Link", "Resume File",
+    "Cover Letter", "Matched Keywords", "Status", "Package Hash", "Resume Hash",
+    "Resume Pages", "Resume Drive File ID", "Resume Used", "Resume Archive Name",
+    "Fields Hash", "Review Verdict", "Updated (SGT)",
+]
+APPLICATIONS_LEGACY_HEADERS = [
+    "Key", "Job", "Company", "Title", "Application Link", "Resume File",
+    "Cover Letter", "Matched Keywords", "Status", "Updated",
+]
 LINKEDIN_POST_HEADERS = ["Key", "Job", "Company", "Job Title", "Job URL", "Post URL",
                          "Post Text", "Author", "Author Title", "Author Profile", "Role Type",
                          "Confidence", "Evidence", "Intent", "Posted", "Status"]
@@ -114,6 +131,36 @@ class GoogleSheetsRepository:
         }
         self._ready = False  # tabs + headers ensured?
         self._sheet_ids: dict[str, int] = {}  # tab title -> sheetId (filled by _ensure_ready)
+
+    @contextmanager
+    def _application_write_lock(self):
+        """Serialize application-row upserts by this local automation instance."""
+        key = "".join(character for character in self.spreadsheet_id if character.isalnum())[:64]
+        path = Path("data/sheets_write_locks") / f"{key or 'sheet'}.lock"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        handle = path.open("a+b")
+        handle.seek(0, 2)
+        if handle.tell() == 0:
+            handle.write(b"0")
+            handle.flush()
+        handle.seek(0)
+        try:
+            if os.name == "nt":
+                import msvcrt
+                msvcrt.locking(handle.fileno(), msvcrt.LK_LOCK, 1)
+            else:
+                import fcntl
+                fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+            yield
+        finally:
+            handle.seek(0)
+            if os.name == "nt":
+                import msvcrt
+                msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
+            else:
+                import fcntl
+                fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+            handle.close()
         self.last_was_new = False  # was the most recent upsert a new append?
         self._last_upsert_row: int | None = None
 
@@ -217,6 +264,28 @@ class GoogleSheetsRepository:
                         }
                     }]})
                     current_headers.insert(4, "ApplicationLink")
+            if tab == self.applications_tab and current_headers:
+                if current_headers == APPLICATIONS_LEGACY_HEADERS:
+                    sheet_id = self._sheet_ids.get(tab)
+                    if sheet_id is None:
+                        raise RuntimeError("cannot migrate Applications schema without sheet ID")
+                    self.http("POST", self._url(":batchUpdate"), {"requests": [{
+                        "insertDimension": {
+                            "range": {
+                                "sheetId": sheet_id,
+                                "dimension": "COLUMNS",
+                                "startIndex": 9,
+                                "endIndex": 17,
+                            },
+                            "inheritFromBefore": True,
+                        }
+                    }]})
+                    current_headers = APPLICATIONS_HEADERS.copy()
+                    self._values_update(f"'{tab}'!A1", APPLICATIONS_HEADERS)
+                elif current_headers != APPLICATIONS_HEADERS:
+                    raise RuntimeError(
+                        "unknown Applications schema; refusing to relabel populated columns"
+                    )
             if not first or not first[0] or len(first[0]) < len(headers):
                 self._values_update(f"'{tab}'!A1", headers)
         self._ready = True
@@ -372,18 +441,166 @@ class GoogleSheetsRepository:
         ]
         return self._upsert_row(self.outreach_tab, key, row)
 
-    def upsert_application(self, draft: ApplicationDraft) -> str:
+    def upsert_application(
+        self,
+        draft: ApplicationDraft,
+        *,
+        resume_path: str | Path | None = None,
+        archive: ResumeArchiveRecord | None = None,
+        drive_archive=None,
+    ) -> str:
         """Write the complete reviewable package, including its mandatory cover letter."""
         if not draft.cover_letter.strip():
             raise ValueError("application package requires a cover letter")
-        key = draft.job_id
+        require_final_resume_filename(draft.resume_filename)
+        required = {
+            "package ID": draft.package_id,
+            "package hash": draft.package_hash,
+            "résumé hash": draft.resume_hash,
+            "Drive file ID": draft.resume_drive_file_id,
+            "Drive URL": draft.resume_drive_url,
+            "Drive archive name": draft.resume_archive_name,
+            "fields hash": draft.fields_hash,
+        }
+        missing = [name for name, value in required.items() if not str(value).strip()]
+        if missing:
+            raise ValueError(
+                "authoritative Applications row requires exact-package evidence: "
+                + ", ".join(missing)
+            )
+        if draft.package_id != draft.package_hash:
+            raise ValueError("application package ID and package hash must match")
+        for name, value in (("résumé hash", draft.resume_hash), ("fields hash", draft.fields_hash)):
+            if len(value) != 64 or any(character not in "0123456789abcdefABCDEF" for character in value):
+                raise ValueError(f"{name} must be a full SHA-256 value")
+        if draft.resume_page_count != 2:
+            raise ValueError("authoritative Applications row requires a two-page résumé")
+        if draft.review_verdict != "pass":
+            raise ValueError("authoritative Applications row requires a passing review")
+        if draft.status not in {"review_passed", "approved", "autofill_ready", "applied"}:
+            raise ValueError("authoritative Applications row has an ineligible status")
+        require_final_resume_filename(draft.resume_archive_name)
+        if resume_path is None or archive is None or drive_archive is None:
+            raise ValueError(
+                "authoritative Applications row requires verified local and Drive artifacts"
+            )
+        resume = require_final_resume_pdf(resume_path)
+        digest = hashlib.sha256(resume.read_bytes()).hexdigest()
+        if digest != draft.resume_hash:
+            raise ValueError("authoritative Applications résumé hash does not match local bytes")
+        pagination = require_two_page_resume(resume)
+        if pagination.page_count != draft.resume_page_count:
+            raise ValueError("authoritative Applications page count does not match local PDF")
+        archive_expected = {
+            "package_id": draft.package_id,
+            "resume_hash": draft.resume_hash,
+            "resume_size": resume.stat().st_size,
+            "drive_file_id": draft.resume_drive_file_id,
+            "drive_url": draft.resume_drive_url,
+            "drive_name": draft.resume_archive_name,
+        }
+        for field, value in archive_expected.items():
+            if getattr(archive, field) != value:
+                raise ValueError(f"authoritative Applications Drive receipt changed: {field}")
+        drive_archive.validate_remote(archive, expected_name=draft.resume_archive_name)
+        key = draft.package_id or draft.job_id
         row = [
             key, draft.job_id, draft.company, draft.title,
             draft.application_link or draft.url, draft.resume_filename,
             draft.cover_letter[:_MAX_CELL], ", ".join(draft.matched_keywords),
-            draft.status, datetime.now().isoformat(timespec="seconds"),
+            draft.status, draft.package_hash, draft.resume_hash, draft.resume_page_count or "",
+            draft.resume_drive_file_id, draft.resume_drive_url, draft.resume_archive_name,
+            draft.fields_hash,
+            draft.review_verdict,
+            datetime.now(ZoneInfo("Asia/Singapore")).isoformat(timespec="seconds"),
         ]
-        return self._upsert_row(self.applications_tab, key, row)
+        with self._application_write_lock():
+            return self._upsert_row(self.applications_tab, key, row)
+
+    def get_application_record(self, package_id: str) -> dict[str, object] | None:
+        """Read one authoritative package row by its exact package ID."""
+        self._ensure_ready()
+        values = self._values_get(f"'{self.applications_tab}'!A2:A")
+        matches = [
+            index + 2 for index, row in enumerate(values)
+            if row and str(row[0]) == package_id
+        ]
+        if len(matches) > 1:
+            raise RuntimeError("duplicate authoritative Google Sheets package rows exist")
+        if not matches:
+            return None
+        row_number = matches[0]
+        last = _col_letter(len(APPLICATIONS_HEADERS))
+        rows = self._values_get(f"'{self.applications_tab}'!A{row_number}:{last}{row_number}")
+        row = list(rows[0]) if rows else []
+        row.extend([""] * (len(APPLICATIONS_HEADERS) - len(row)))
+        return dict(zip(APPLICATIONS_HEADERS, row, strict=True))
+
+    def validate_application_record(
+        self,
+        *,
+        package_id: str,
+        job_id: str,
+        company: str,
+        title: str,
+        application_link: str,
+        resume_filename: str,
+        cover_letter: str,
+        fields_hash: str,
+        package_hash: str,
+        resume_hash: str,
+        resume_page_count: int,
+        drive_file_id: str,
+        drive_url: str,
+        drive_name: str,
+        allowed_statuses: set[str],
+    ) -> dict[str, object]:
+        record = self.get_application_record(package_id)
+        if record is None:
+            raise RuntimeError("authoritative Google Sheets application row is missing")
+        expected = {
+            "Job": job_id,
+            "Company": company,
+            "Title": title,
+            "Application Link": application_link,
+            "Resume File": resume_filename,
+            "Cover Letter": cover_letter[:_MAX_CELL],
+            "Package Hash": package_hash,
+            "Resume Hash": resume_hash,
+            "Resume Pages": str(resume_page_count),
+            "Resume Drive File ID": drive_file_id,
+            "Resume Used": drive_url,
+            "Resume Archive Name": drive_name,
+            "Fields Hash": fields_hash,
+            "Review Verdict": "pass",
+        }
+        for header, value in expected.items():
+            if str(record.get(header, "")) != str(value):
+                raise RuntimeError(f"authoritative Google Sheets field changed: {header}")
+        if str(record.get("Status", "")) not in allowed_statuses:
+            raise RuntimeError("authoritative Google Sheets application status is not eligible")
+        return record
+
+    def update_application_status(self, package_id: str, status: str) -> None:
+        """Narrowly update only the package status cell, preserving all other columns."""
+        allowed = {
+            "review_passed", "approved", "autofill_ready", "applied",
+            "submission_unknown", "withdrawn",
+        }
+        if status not in allowed:
+            raise ValueError(f"unsupported application status: {status}")
+        self._ensure_ready()
+        values = self._values_get(f"'{self.applications_tab}'!A2:A")
+        matches = [
+            index + 2 for index, row in enumerate(values)
+            if row and str(row[0]) == package_id
+        ]
+        if len(matches) > 1:
+            raise RuntimeError("duplicate authoritative Google Sheets package rows exist")
+        if not matches:
+            raise RuntimeError("authoritative Google Sheets application row is missing")
+        row_number = matches[0]
+        self._values_update(f"'{self.applications_tab}'!I{row_number}:I{row_number}", [status])
 
     def upsert_linkedin_post_match(self, match: LinkedInPostMatch) -> str:
         """Upsert linkedin post match."""

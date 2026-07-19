@@ -6,6 +6,15 @@ from apply.resume_models import ResumeAchievement
 from models import Applicant, Job
 
 
+def _master(block_text: str, **fields: object) -> ResumeAchievement:
+    """Build test evidence copied verbatim from a master resume."""
+    return ResumeAchievement(
+        block_text=block_text,
+        provenance="master resume",
+        **fields,
+    )
+
+
 def _job() -> Job:
     """Provide a test helper for job."""
     return Job(
@@ -50,14 +59,16 @@ def test_build_contact_header_includes_github_and_resume_links():
 def test_build_resume_variant_formats_keyword_xyz_bullets():
     """Verify the build resume variant formats keyword xyz bullets scenario."""
     achievements = [
-        ResumeAchievement(
+        _master(
+            "Reduced monthly reporting cycle time by automating SQL and Python data pipelines.",
             keyword="data analytics",
             result="Reduced monthly reporting cycle time",
             metric="40% faster close for leadership dashboards",
             method="automating SQL and Python data pipelines",
             tags=["python", "sql", "data analytics"],
         ),
-        ResumeAchievement(
+        _master(
+            "Improved trusted data adoption through a governed KPI layer across finance teams.",
             keyword="data governance",
             result="Improved trusted data adoption",
             metric="single governed KPI layer across finance teams",
@@ -69,16 +80,17 @@ def test_build_resume_variant_formats_keyword_xyz_bullets():
     variant = build_resume_variant(_job(), achievements)
 
     assert variant.keywords
-    assert variant.bullets[0].startswith("data analytics: ")
-    assert "measured by 40% faster close" in variant.bullets[0]
-    assert ", by automating SQL and Python data pipelines." in variant.bullets[0]
-    assert variant.text.startswith("- data analytics: ")
+    assert variant.bullets[0] == achievements[0].block_text
+    assert variant.text == f"- {achievements[0].block_text}\n- {achievements[1].block_text}"
 
 
 def test_build_resume_variant_skips_incomplete_xyz_evidence():
     """Verify the build resume variant skips incomplete xyz evidence scenario."""
     achievements = [
-        ResumeAchievement(keyword="python", result="Automated reporting", metric="", method="using Python")
+        _master(
+            "Automated reporting using Python.",
+            keyword="python", result="Automated reporting", metric="", method="using Python",
+        )
     ]
 
     variant = build_resume_variant(_job(), achievements)
@@ -98,14 +110,16 @@ def test_domain_keyword_beats_shared_tool_overlap():
         description="machine learning customer analytics in Python on Databricks",
     )
     achievements = [
-        ResumeAchievement(
+        _master(
+            "Built a risk app for 30 users using Python and Databricks.",
             keyword="risk analytics",
             result="Built a risk app",
             metric="30 users",
             method="using Python and Databricks",
             tags=["risk analytics", "databricks", "python"],
         ),
-        ResumeAchievement(
+        _master(
+            "Improved product targeting across 4,500 subsidiaries using K-means and PCA.",
             keyword="machine learning",
             result="Improved product targeting",
             metric="4,500 subsidiaries covered",
@@ -116,20 +130,22 @@ def test_domain_keyword_beats_shared_tool_overlap():
 
     variant = build_resume_variant(job, achievements, bullet_limit=1)
 
-    assert variant.bullets[0].startswith("machine learning: ")
+    assert variant.bullets[0] == achievements[1].block_text
 
 
 def test_build_resume_variant_can_exclude_adjacent_role_tags():
     """Verify the build resume variant can exclude adjacent role tags scenario."""
     achievements = [
-        ResumeAchievement(
+        _master(
+            "Built a risk product for 30 users using Python.",
             keyword="credit risk analytics",
             result="Built a risk product",
             metric="30 users",
             method="using Python",
             tags=["risk analytics"],
         ),
-        ResumeAchievement(
+        _master(
+            "Built a sales dashboard for 150 users using Power BI.",
             keyword="front-office analytics",
             result="Built a sales dashboard",
             metric="150 users",
@@ -145,13 +161,14 @@ def test_build_resume_variant_can_exclude_adjacent_role_tags():
     )
 
     assert len(variant.bullets) == 1
-    assert variant.bullets[0].startswith("front-office analytics: ")
+    assert variant.bullets[0] == achievements[1].block_text
 
 
 def test_resume_variant_includes_required_agent_outputs_and_flags_gaps():
     """Verify the resume variant includes required agent outputs and flags gaps scenario."""
     achievements = [
-        ResumeAchievement(
+        _master(
+            "Built customer targeting models covering 4,500 subsidiaries using K-means and PCA.",
             keyword="machine learning",
             result="Built customer targeting models",
             metric="4,500 subsidiaries covered",
@@ -178,7 +195,8 @@ def test_resume_variant_includes_required_agent_outputs_and_flags_gaps():
 
 def test_unrelated_achievement_is_excluded_instead_of_ranked_by_metric_only():
     """Verify the unrelated achievement is excluded instead of ranked by metric only scenario."""
-    achievement = ResumeAchievement(
+    achievement = _master(
+        "Built a school timetable for seven schools.",
         keyword="education operations",
         result="Built a school timetable",
         metric="seven schools",
@@ -210,7 +228,8 @@ def test_resume_bullet_preserves_common_technical_acronym_casing():
         url="https://example.com/ai",
         description="Lead AI and SQL delivery using Python APIs",
     )
-    achievement = ResumeAchievement(
+    achievement = _master(
+        "Built an analytics service for 100 users using Python, SQL, and APIs.",
         keyword="ai",
         result="Built an analytics service",
         metric="100 users",
@@ -220,12 +239,13 @@ def test_resume_bullet_preserves_common_technical_acronym_casing():
 
     variant = build_resume_variant(job, [achievement])
 
-    assert variant.bullets[0].startswith("AI: ")
+    assert variant.bullets[0] == achievement.block_text
 
 
 def test_disclosure_constrained_evidence_is_not_selected():
     """Verify the disclosure constrained evidence is not selected scenario."""
-    achievement = ResumeAchievement(
+    achievement = _master(
+        "Improved a confidential model using Python.",
         keyword="machine learning",
         result="Improved a confidential model",
         metric="private metric",
@@ -235,3 +255,54 @@ def test_disclosure_constrained_evidence_is_not_selected():
     variant = build_resume_variant(_job(), [achievement])
     assert variant.bullets == []
     assert variant.selected_evidence == []
+
+
+def test_resume_variant_rejects_structured_evidence_without_exact_master_block():
+    """XYZ metadata alone must never be rewritten into an application bullet."""
+    achievement = ResumeAchievement(
+        source="master resume",
+        keyword="machine learning",
+        result="Improved coverage",
+        metric="10 models",
+        method="using Python",
+    )
+
+    variant = build_resume_variant(_job(), [achievement])
+
+    assert variant.bullets == []
+    assert variant.selected_evidence == []
+
+
+def test_resume_variant_rejects_non_master_and_tampered_blocks():
+    """A copied block needs master provenance and an intact content fingerprint."""
+    non_master = _master(
+        "Improved coverage for 10 models using Python.",
+        keyword="machine learning", result="Improved coverage", metric="10 models",
+        method="using Python",
+    ).model_copy(update={"provenance": "interview notes"})
+    tampered = _master(
+        "Improved coverage for 10 models using Python.",
+        keyword="machine learning", result="Improved coverage", metric="10 models",
+        method="using Python",
+    ).model_copy(update={"block_text": "Changed application-only wording."})
+
+    variant = build_resume_variant(_job(), [non_master, tampered])
+
+    assert variant.bullets == []
+
+
+def test_resume_variant_preserves_master_block_whitespace_and_punctuation_exactly():
+    """Assembly selects and reorders but does not normalize authoritative block text."""
+    block = "Led ML delivery — 10 models; 40% faster.  "
+    achievement = _master(
+        block,
+        keyword="machine learning", result="Led ML delivery", metric="10 models",
+        method="using Python",
+    )
+
+    variant = build_resume_variant(_job(), [achievement])
+
+    assert variant.bullets == [block]
+    assert variant.selected_evidence[0].bullet == block
+    assert variant.selected_evidence[0].provenance == "master resume"
+    assert len(variant.selected_evidence[0].block_hash) == 64

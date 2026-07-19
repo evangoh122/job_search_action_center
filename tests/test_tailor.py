@@ -37,7 +37,7 @@ def test_tailor_returns_application_draft():
     assert draft.matched_keywords
     assert draft.application_link == "https://example.com/job"
     assert draft.resume_filename.startswith("Evan_Resume")
-    assert draft.resume_filename.endswith("_AC.docx")
+    assert draft.resume_filename.endswith("_AC.pdf")
 
 
 def test_tailor_can_attach_keyword_xyz_resume_variant():
@@ -47,6 +47,11 @@ def test_tailor_can_attach_keyword_xyz_resume_variant():
         achievements=[
             ResumeAchievement(
                 evidence_id="monitoring-1",
+                source="master resume",
+                block_text=(
+                    "Improved model monitoring coverage across critical production models "
+                    "by building reusable Python validation checks."
+                ),
                 keyword="machine learning",
                 result="Improved model monitoring coverage",
                 metric="coverage across critical production models",
@@ -58,8 +63,7 @@ def test_tailor_can_attach_keyword_xyz_resume_variant():
 
     assert draft.resume_keywords
     assert draft.resume_bullets == [
-        "machine learning: Improved model monitoring coverage, "
-        "measured by coverage across critical production models, "
+        "Improved model monitoring coverage across critical production models "
         "by building reusable Python validation checks."
     ]
     assert "Relevant evidence includes:" in draft.cover_letter
@@ -77,10 +81,17 @@ def test_resume_version_changes_when_rendered_resume_content_changes():
     """Verify the resume version changes when rendered resume content changes scenario."""
     job = _job()
     first = ResumeAchievement(
-        evidence_id="same-id", keyword="machine learning", result="Improved coverage",
+        evidence_id="same-id", source="master resume",
+        block_text="Improved coverage across 10 models using Python.",
+        keyword="machine learning", result="Improved coverage",
         metric="10 models", method="using Python",
     )
-    changed = first.model_copy(update={"metric": "20 models"})
+    changed = ResumeAchievement(
+        evidence_id="same-id", source="master resume",
+        block_text="Improved coverage across 20 models using Python.",
+        keyword="machine learning", result="Improved coverage",
+        metric="20 models", method="using Python",
+    )
     assert tailor(job, achievements=[first]).resume_version_id != tailor(
         job, achievements=[changed]
     ).resume_version_id

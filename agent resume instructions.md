@@ -148,7 +148,7 @@ When the draft exceeds two pages, cut content in this order:
 
 Do not cut the strongest measurable outcomes merely because they are older; retain them when they materially prove a critical requirement. Older unrelated roles may be reduced to employer, title, and dates or grouped under `Additional Experience`.
 
-The agent must produce a concise two-page draft, then perform a second editorial pass that removes repetition, shortens weak phrasing, and checks visual density. It must not change the template's font size, font family, margins, or line spacing to force the draft to fit. If rendered output is available, verify the actual page count. If rendering is unavailable, label the result `two-page-targeted` and note that final pagination must be verified in the chosen template.
+The agent must produce a concise two-page draft, then perform a second editorial pass that removes repetition, shortens weak phrasing, and checks visual density. It must not change the template's font size, font family, margins, or line spacing to force the draft to fit. Render the exact final artifact, require exactly two PDF pages, generate both page previews, and obtain a visual-QA receipt bound to the final résumé hash. If rendering or visual inspection is unavailable, fail closed; `two-page-targeted` is not approval evidence.
 
 ## Bullet construction: keyword + XYZ
 
@@ -286,7 +286,9 @@ Before returning the resume, verify every item:
 - [ ] The strongest evidence appears first.
 - [ ] Repeated bullets and low-value tool-only matches were removed.
 - [ ] Direct, transferable, and supporting matches were distinguished correctly.
-- [ ] The resume fits two pages when rendered, or is clearly marked `two-page-targeted` pending pagination verification.
+- [ ] The exact final PDF has passed the fail-closed rendered gate at exactly two pages.
+- [ ] The submitted artifact passes the shared PDF-only harness (file exists, `.pdf` suffix, and
+      `%PDF-` byte signature); DOCX remains editing-source only and is never packaged or uploaded.
 - [ ] The two-page limit was achieved through selection and concise writing, with no reduction to font size or other template spacing.
 - [ ] Grammar, tense, punctuation, capitalization, and date formatting are consistent.
 - [ ] The resume remains readable to a human and is not written for an ATS alone.

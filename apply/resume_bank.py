@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-import json
 import hashlib
+import json
 from pathlib import Path
 
 from apply.resume_models import ResumeAchievement
@@ -15,9 +15,13 @@ def load_achievements(path: str | Path = "data/resume_achievements.json") -> lis
     for record in records:
         achievement = ResumeAchievement.model_validate(record)
         if not achievement.evidence_id:
-            fingerprint = "\x1f".join(
-                (achievement.keyword, achievement.result, achievement.metric, achievement.method)
-            ).encode("utf-8")
+            fingerprint = (
+                achievement.block_text.encode("utf-8")
+                if achievement.block_text
+                else "\x1f".join(
+                    (achievement.keyword, achievement.result, achievement.metric, achievement.method)
+                ).encode("utf-8")
+            )
             achievement = achievement.model_copy(
                 update={"evidence_id": hashlib.sha256(fingerprint).hexdigest()[:12]}
             )

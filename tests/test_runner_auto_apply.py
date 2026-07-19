@@ -34,6 +34,24 @@ class FakeQueue:
         return "draft-id"
 
 
+class FakeTracker:
+    def __init__(self):
+        self.application_writes = 0
+
+    def upsert_job(self, job):
+        return job.dedupe_key
+
+    def upsert_application(self, draft):
+        self.application_writes += 1
+        raise AssertionError("draft-only discovery must not write authoritative Applications")
+
+    def refresh_aging_formulas(self):
+        return None
+
+    def sort_jobs(self):
+        return None
+
+
 def _raw():
     """Provide a test helper for raw."""
     return RawJob(
@@ -43,16 +61,16 @@ def _raw():
     )
 
 
-def test_explicitly_approved_tier_b_can_submit(monkeypatch):
-    """Verify the explicitly approved tier b can submit scenario."""
+def test_background_runner_never_submits_approved_tier_b(monkeypatch):
+    """Even injected legacy approvals remain draft-only in discovery runs."""
     monkeypatch.setattr("runner.final_score", lambda job, within_24h: 60.0)
     monkeypatch.setattr("runner.apply_tier", lambda job: "B")
     repo = SqliteRepository()
     applier = FakeApplier(approved=True)
     result = run(repo=repo, jobs=[_raw()], auto_applier=applier)
-    assert applier.calls == 1
+    assert applier.calls == 0
     assert result["app_drafts"] == 0
-    assert repo.list_jobs()[0].status == "applied"
+    assert repo.list_jobs()[0].status == "new"
 
 
 def test_unapproved_tier_b_stays_in_draft_queue(monkeypatch):
@@ -71,6 +89,18 @@ def test_unapproved_tier_b_stays_in_draft_queue(monkeypatch):
     assert repo.list_jobs()[0].status == "drafted"
 
 
+def test_discovery_draft_never_enters_authoritative_applications_sheet(monkeypatch):
+    monkeypatch.setattr("runner.final_score", lambda job, within_24h: 60.0)
+    monkeypatch.setattr("runner.apply_tier", lambda job: "B")
+    tracker = FakeTracker()
+    result = run(
+        repo=SqliteRepository(), jobs=[_raw()], auto_applier=FakeApplier(approved=False),
+        apply_queue=FakeQueue(), tracker=tracker,
+    )
+    assert result["app_drafts"] == 1
+    assert tracker.application_writes == 0
+
+
 def test_tier_b_draft_uses_structured_achievement_bank(monkeypatch):
     """Verify the tier b draft uses structured achievement bank scenario."""
     monkeypatch.setattr("runner.final_score", lambda job, within_24h: 60.0)
@@ -85,6 +115,7 @@ def test_tier_b_draft_uses_structured_achievement_bank(monkeypatch):
             ResumeAchievement(
                 evidence_id="evidence-1",
                 source="master resume",
+                block_text="Built analytics pipelines processing 5M rows monthly using SQL.",
                 keyword="data engineering",
                 result="Built analytics pipelines",
                 metric="5M rows monthly",
@@ -97,8 +128,8 @@ def test_tier_b_draft_uses_structured_achievement_bank(monkeypatch):
     assert queue.items[0].resume_selected_evidence[0]["evidence_id"] == "evidence-1"
 
 
-def test_explicit_approval_can_promote_existing_draft(monkeypatch):
-    """Verify the explicit approval can promote existing draft scenario."""
+def test_legacy_approval_cannot_promote_existing_draft(monkeypatch):
+    """Existing drafts require the review-engine CLI, not runner approval keys."""
     monkeypatch.setattr("runner.final_score", lambda job, within_24h: 60.0)
     monkeypatch.setattr("runner.apply_tier", lambda job: "B")
     repo = SqliteRepository()
@@ -111,8 +142,8 @@ def test_explicit_approval_can_promote_existing_draft(monkeypatch):
 
     approved = FakeApplier(approved=True)
     run(repo=repo, jobs=[_raw()], auto_applier=approved)
-    assert approved.calls == 1
-    assert repo.list_jobs()[0].status == "applied"
+    assert approved.calls == 0
+    assert repo.list_jobs()[0].status == "drafted"
 
 
 def test_salary_floor_prevents_storage_and_application_actions(monkeypatch):

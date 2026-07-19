@@ -1,9 +1,14 @@
 from __future__ import annotations
 
+import hashlib
 from datetime import datetime
+
+import pytest
+from PyPDF2 import PdfWriter
 
 from models import ApplicationDraft, Contact, EmailDraft, Job, LinkedInPostMatch
 from store.google_sheets_repo import GoogleSheetsRepository
+from store.google_drive_resume_archive import ResumeArchiveRecord
 
 
 def _job() -> Job:
@@ -47,6 +52,43 @@ def _updated(calls) -> list:
     """Provide a test helper for updated."""
     put = [c for c in calls if c[0] == "PUT"][0]
     return put[2]["values"][0]
+
+
+class _VerifiedDrive:
+    def __init__(self):
+        self.calls = 0
+
+    def validate_remote(self, archive, *, expected_name):
+        self.calls += 1
+        assert archive.drive_name == expected_name
+        return {"id": archive.drive_file_id}
+
+
+def _authoritative_application(tmp_path):
+    resume = tmp_path / "resume.pdf"
+    writer = PdfWriter()
+    writer.add_blank_page(width=612, height=792)
+    writer.add_blank_page(width=612, height=792)
+    with resume.open("wb") as output:
+        writer.write(output)
+    digest = hashlib.sha256(resume.read_bytes()).hexdigest()
+    package_id = "a" * 64
+    archive = ResumeArchiveRecord(
+        package_id=package_id, resume_hash=digest, resume_size=resume.stat().st_size,
+        drive_file_id="drive-1", drive_url="https://drive.google.com/file/d/drive-1/view",
+        drive_name="Evan_Goh_DBS_2026-07-19.pdf", folder_id="folder-1",
+        archived_at="2026-07-19T12:00:00+08:00",
+    )
+    draft = ApplicationDraft(
+        job_id="j1", company="DBS", title="Head of Data", url="https://x/1",
+        application_link="https://x/1", resume_filename="Evan_Resume.pdf",
+        cover_letter="Dear DBS, tailored evidence.", matched_keywords=["data governance"],
+        status="review_passed", package_id=package_id, package_hash=package_id,
+        resume_hash=digest, resume_page_count=2, resume_drive_file_id=archive.drive_file_id,
+        resume_drive_url=archive.drive_url, resume_archive_name=archive.drive_name,
+        fields_hash="c" * 64, review_verdict="pass",
+    )
+    return draft, resume, archive
 
 
 # ── Jobs ─────────────────────────────────────────────────────────────────────
@@ -240,6 +282,38 @@ def test_ensure_inserts_application_link_column_before_rewriting_legacy_headers(
     }
 
 
+def test_ensure_migrates_legacy_applications_columns_without_relabeling_timestamp():
+    calls: list[tuple[str, str, dict | None]] = []
+    legacy = [
+        "Key", "Job", "Company", "Title", "Application Link", "Resume File",
+        "Cover Letter", "Matched Keywords", "Status", "Updated",
+    ]
+
+    def http(method: str, url: str, body: dict | None) -> dict:
+        calls.append((method, url, body))
+        if method == "GET" and "/values/" not in url:
+            return {"sheets": [{"properties": {"title": "Applications", "sheetId": 9}}]}
+        if method == "GET" and "Applications" in url:
+            return {"values": [legacy.copy()]}
+        if method == "GET":
+            return {"values": []}
+        return {}
+
+    GoogleSheetsRepository("sheet123", token="tok", http=http)._ensure_ready()
+    inserts = [
+        request["insertDimension"]
+        for call in calls if call[0] == "POST" and call[2]
+        for request in call[2].get("requests", []) if "insertDimension" in request
+    ]
+    assert {"sheetId": 9, "dimension": "COLUMNS", "startIndex": 9, "endIndex": 17} in [
+        item["range"] for item in inserts
+    ]
+    assert any(
+        call[0] == "PUT" and "Applications" in call[1] and len(call[2]["values"][0]) == 18
+        for call in calls
+    )
+
+
 def test_upsert_networking_keyed_by_email():
     """Verify the upsert networking keyed by email scenario."""
     http, calls = _fake([])
@@ -261,17 +335,17 @@ def test_upsert_networking_falls_back_to_name():
     assert _appended(calls)[0] == "No Email Person"
 
 
-def test_upsert_application_writes_cover_letter_section():
+def test_upsert_application_writes_cover_letter_section(tmp_path):
     """Verify the upsert application writes cover letter section scenario."""
     http, calls = _fake([])
-    draft = ApplicationDraft(
-        job_id="j1", company="DBS", title="Head of Data", url="https://x/1",
-        application_link="https://x/1", resume_filename="Evan_Resume.docx",
-        cover_letter="Dear DBS, tailored evidence.", matched_keywords=["data governance"],
-    )
-    assert _repo(http).upsert_application(draft) == "j1"
+    draft, resume, archive = _authoritative_application(tmp_path)
+    drive = _VerifiedDrive()
+    assert _repo(http).upsert_application(
+        draft, resume_path=resume, archive=archive, drive_archive=drive
+    ) == "a" * 64
+    assert drive.calls == 1
     row = _appended(calls)
-    assert row[0:4] == ["j1", "j1", "DBS", "Head of Data"]
+    assert row[0:4] == ["a" * 64, "j1", "DBS", "Head of Data"]
     assert row[6] == "Dear DBS, tailored evidence."
     assert row[7] == "data governance"
 
@@ -284,6 +358,73 @@ def test_upsert_application_rejects_missing_cover_letter():
     import pytest
     with pytest.raises(ValueError, match="requires a cover letter"):
         _repo(http).upsert_application(draft)
+
+
+def test_upsert_application_rejects_non_pdf_resume_filename():
+    http, _ = _fake([])
+    draft = ApplicationDraft(
+        job_id="j1", company="DBS", title="Role", url="https://x",
+        cover_letter="Dear DBS", resume_filename="resume.docx",
+    )
+    with pytest.raises(ValueError, match="must end in .pdf"):
+        _repo(http).upsert_application(draft)
+
+
+def test_upsert_application_rejects_draft_without_exact_package_evidence():
+    http, _ = _fake([])
+    draft = ApplicationDraft(
+        job_id="j1", company="DBS", title="Role", url="https://x",
+        cover_letter="Dear DBS", resume_filename="resume.pdf",
+    )
+    with pytest.raises(ValueError, match="exact-package evidence"):
+        _repo(http).upsert_application(draft)
+
+
+def test_complete_looking_application_is_rejected_without_artifact_verification(tmp_path):
+    http, _ = _fake([])
+    draft, _, _ = _authoritative_application(tmp_path)
+    with pytest.raises(ValueError, match="verified local and Drive artifacts"):
+        _repo(http).upsert_application(draft)
+
+
+def test_validate_application_record_checks_every_package_derived_field():
+    record = {
+        "Key": "pkg-1", "Job": "job-1", "Company": "DBS", "Title": "Data Scientist",
+        "Application Link": "https://apply", "Resume File": "resume.pdf",
+        "Cover Letter": "Dear DBS", "Matched Keywords": "", "Status": "review_passed",
+        "Package Hash": "pkg-hash", "Resume Hash": "resume-hash", "Resume Pages": "2",
+        "Resume Drive File ID": "drive-1", "Resume Used": "https://drive",
+        "Resume Archive Name": "Evan_Goh_DBS_2026-07-19.pdf", "Fields Hash": "fields-hash",
+        "Review Verdict": "pass", "Updated (SGT)": "2026-07-19T12:00:00+08:00",
+    }
+    repo = _repo(lambda *_: {})
+    repo.get_application_record = lambda package_id: record.copy()
+    kwargs = dict(
+        package_id="pkg-1", job_id="job-1", company="DBS", title="Data Scientist",
+        application_link="https://apply", resume_filename="resume.pdf",
+        cover_letter="Dear DBS", fields_hash="fields-hash", package_hash="pkg-hash",
+        resume_hash="resume-hash", resume_page_count=2, drive_file_id="drive-1",
+        drive_url="https://drive", drive_name="Evan_Goh_DBS_2026-07-19.pdf",
+        allowed_statuses={"review_passed"},
+    )
+    assert repo.validate_application_record(**kwargs)["Company"] == "DBS"
+    for field in (
+        "Job", "Company", "Title", "Application Link", "Resume File", "Cover Letter",
+        "Package Hash", "Resume Hash", "Resume Pages", "Resume Drive File ID",
+        "Resume Used", "Resume Archive Name", "Fields Hash", "Review Verdict",
+    ):
+        changed = record.copy()
+        changed[field] = "tampered"
+        repo.get_application_record = lambda package_id, changed=changed: changed
+        with pytest.raises(RuntimeError, match="field changed"):
+            repo.validate_application_record(**kwargs)
+
+
+def test_get_application_record_rejects_duplicate_package_rows():
+    repo = _repo(lambda *_: {})
+    repo._values_get = lambda range_name: [["pkg-1"], ["pkg-1"]]
+    with pytest.raises(RuntimeError, match="duplicate authoritative"):
+        repo.get_application_record("pkg-1")
 
 
 def test_upsert_linkedin_post_match_writes_evidence_and_review_status():

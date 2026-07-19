@@ -1,7 +1,7 @@
-"""Approval-gated application orchestration.
+"""Legacy application drafting orchestration.
 
-Dry-run is the default. Live mode additionally requires the vacancy's id or dedupe key in
-an approval set and a browser submitter. No applicant-side code calls employer-owned ATS APIs.
+Live browser actions are disabled here. Exact-package review and approval is handled only
+by :mod:`apply.review_engine` and ``application_cli.py``.
 """
 from __future__ import annotations
 
@@ -118,24 +118,7 @@ class AutoApplier:
         if self.dry_run:
             logger.info("[DRY_RUN] prepared application for %s at %s", job.title, self.last_plan.form_url)
             return "dry_run"
-        if not self.is_approved(job):
-            logger.info("Per-job approval required for %s", job.title)
-            return "approval_required"
-        if self.submitter is None:
-            logger.info("Browser submitter not configured for approved job %s", job.title)
-            return "review_required"
-        resume_path = Path(self.applicant.resume_path) if self.applicant.resume_path else None
-        if resume_path is None or not resume_path.is_file():
-            logger.warning("A readable local resume file is required for live submission")
-            return "incomplete"
-        if not self._salary_is_cleared(job):
-            logger.warning("Salary review or an explicit per-vacancy override is required")
-            return "salary_review_required"
-        try:
-            result = self.submitter(job, self.applicant, self.last_plan)
-            return result if result in {
-                "submitted", "submission_unknown", "review_required", "captcha_required"
-            } else "error"
-        except Exception:
-            logger.warning("Browser application failed for %s", job.title, exc_info=True)
-            return "error"
+        logger.warning(
+            "Legacy live application is disabled; prepare an immutable review-engine package"
+        )
+        return "review_engine_required"

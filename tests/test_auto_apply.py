@@ -61,24 +61,24 @@ def test_dry_run_default_prepares_plan_without_submitting(applicant):
     assert submitter.calls == []
 
 
-def test_live_submission_requires_per_job_approval(applicant):
-    """Verify the live submission requires per job approval scenario."""
+def test_legacy_live_submission_requires_review_engine(applicant):
+    """Legacy callers cannot bypass immutable package review."""
     submitter = RecordingSubmitter()
     result = AutoApplier(applicant, dry_run=False, submitter=submitter).apply(
         _job("lever", "https://jobs.lever.co/globex/456")
     )
-    assert result == "approval_required"
+    assert result == "review_engine_required"
     assert submitter.calls == []
 
 
-def test_approved_job_uses_browser_submitter(applicant):
-    """Verify the approved job uses browser submitter scenario."""
+def test_legacy_job_key_approval_cannot_use_browser_submitter(applicant):
+    """Reusable job-key approvals are inert and never launch a browser."""
     submitter = RecordingSubmitter()
     result = AutoApplier(
         applicant, dry_run=False, submitter=submitter, approved_job_keys={"k-lever"}
     ).apply(_job("lever", "https://jobs.lever.co/globex/456"))
-    assert result == "submitted"
-    assert submitter.calls[0][2].fields["email"] == applicant.email
+    assert result == "review_engine_required"
+    assert submitter.calls == []
     assert AutoApplier(applicant, approved_job_keys={"k-lever"}).is_approved(
         _job("lever", "https://jobs.lever.co/globex/456")
     )
@@ -101,7 +101,7 @@ def test_supported_hosted_boards_use_review_flow(applicant):
         result = AutoApplier(
             applicant, dry_run=False, approved_job_keys={job.id}
         ).apply(job)
-        assert result == "review_required"
+        assert result == "review_engine_required"
 
 
 def test_unsupported_ats(applicant):
@@ -125,7 +125,7 @@ def test_submitter_error_is_isolated(applicant):
     result = AutoApplier(
         applicant, dry_run=False, submitter=submitter, approved_job_keys={"j"}
     ).apply(_job("greenhouse", "https://boards.greenhouse.io/acme/jobs/123"))
-    assert result == "error"
+    assert result == "review_engine_required"
 
 
 def test_live_submission_requires_existing_local_resume(applicant):
@@ -135,7 +135,7 @@ def test_live_submission_requires_existing_local_resume(applicant):
     result = AutoApplier(
         applicant, dry_run=False, submitter=submitter, approved_job_keys={"j"}
     ).apply(_job("greenhouse", "https://boards.greenhouse.io/acme/jobs/123"))
-    assert result == "incomplete"
+    assert result == "review_engine_required"
     assert submitter.calls == []
 
 
@@ -147,7 +147,7 @@ def test_unknown_salary_requires_separate_recorded_override(applicant):
     blocked = AutoApplier(
         applicant, dry_run=False, submitter=submitter, approved_job_keys={job.id}
     )
-    assert blocked.apply(job) == "salary_review_required"
+    assert blocked.apply(job) == "review_engine_required"
     allowed = AutoApplier(
         applicant,
         dry_run=False,
@@ -155,7 +155,8 @@ def test_unknown_salary_requires_separate_recorded_override(applicant):
         approved_job_keys={job.id},
         salary_override_job_keys={job.id},
     )
-    assert allowed.apply(job) == "submitted"
+    assert allowed.apply(job) == "review_engine_required"
+    assert submitter.calls == []
 
 
 def test_custom_answers_cannot_override_verified_identity(applicant):

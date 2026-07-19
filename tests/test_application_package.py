@@ -19,5 +19,12 @@ def test_company_abbreviation_uses_meaningful_initials():
 def test_resume_filename_uses_mmddyyyy_and_company_abbreviation():
     """Verify the resume filename uses mmddyyyy and company abbreviation scenario."""
     assert resume_filename("Standard Chartered Bank", date(2026, 7, 12)) == (
-        "Evan_Resume07122026_SCB.docx"
+        "Evan_Resume07122026_SCB.pdf"
     )
+
+
+def test_resume_filename_rejects_non_pdf_extension():
+    """The application harness must never name a submitted résumé as DOCX."""
+    import pytest
+    with pytest.raises(ValueError, match="PDF-only"):
+        resume_filename("DBS", extension="docx")

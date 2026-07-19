@@ -109,6 +109,15 @@ class ApplicationDraft(BaseModel):
     resume_change_log: list[str] = Field(default_factory=list)
     resume_pagination_status: str = ""
     status: str = "drafted"  # drafted -> approved -> applied
+    package_id: str = ""
+    package_hash: str = ""
+    resume_hash: str = ""
+    resume_page_count: int | None = None
+    resume_drive_file_id: str = ""
+    resume_drive_url: str = ""
+    resume_archive_name: str = ""
+    fields_hash: str = ""
+    review_verdict: str = ""
 
 
 class LinkedInPostMatch(BaseModel):
