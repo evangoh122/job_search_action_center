@@ -33,6 +33,9 @@ jobs:
       - name: Install poppler-utils (pdftoppm for résumé visual QA)
         run: sudo apt-get update && sudo apt-get install -y poppler-utils
 
+      - name: Verify poppler install
+        run: pdftoppm -v
+
       - name: Install test dependencies
         run: python -m pip install -e ".[dev]"
 

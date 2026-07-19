@@ -1,9 +1,12 @@
 # Job Application Action Plan
 
-> **Authoritative safety rule:** automated application submission remains dry-run unless one
-> exact vacancy is launched through the protected `Approved application` workflow in `live`
-> mode, with confirmation `APPLY`, an approval record, salary clearance, and a visible
-> self-hosted browser. Running `runner.py` locally or on the daily schedule must not submit.
+> **Authoritative safety rule:** automated final submission is permanently disabled. The
+> `Prepare application package` workflow and `application_cli.py` only build an exact,
+> immutable package, run a deterministic review, archive the résumé to Google Drive, and sync
+> the package to Google Sheets. A human must separately `approve` the package, then `open` it to
+> autofill a visible local browser — the human clicks the employer's Submit button themselves.
+> No automation, workflow, or script clicks it. Running `runner.py` locally or on the daily
+> schedule only performs draft discovery and must not prepare, approve, or submit anything.
 
 ## Current Readiness
 
