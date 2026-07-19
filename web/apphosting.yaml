@@ -1,0 +1,28 @@
+runConfig:
+  minInstances: 0
+  maxInstances: 2
+  concurrency: 80
+
+env:
+  - variable: NEXT_PUBLIC_FIREBASE_API_KEY
+    availability:
+      - BUILD
+      - RUNTIME
+  - variable: NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
+    availability:
+      - BUILD
+      - RUNTIME
+  - variable: NEXT_PUBLIC_FIREBASE_PROJECT_ID
+    availability:
+      - BUILD
+      - RUNTIME
+  - variable: SPREADSHEET_ID
+    availability:
+      - RUNTIME
+  - variable: GOOGLE_DRIVE_GAPS_DOCUMENT_ID
+    availability:
+      - RUNTIME
+  - variable: GOOGLE_SERVICE_ACCOUNT_JSON
+    secret: google-service-account-json
+    availability:
+      - RUNTIME
