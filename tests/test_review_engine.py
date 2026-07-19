@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import inspect
 import json
+import shutil
 from pathlib import Path
 
 import pytest
@@ -38,6 +39,8 @@ def _job() -> Job:
 
 @pytest.fixture
 def engine(tmp_path):
+    if shutil.which("pdftoppm") is None:
+        pytest.skip("poppler-utils (pdftoppm) not installed; required for visual QA previews")
     resume = tmp_path / "resume.pdf"
     writer = PdfWriter()
     writer.add_blank_page(width=612, height=792)

@@ -131,6 +131,8 @@ class GoogleSheetsRepository:
         }
         self._ready = False  # tabs + headers ensured?
         self._sheet_ids: dict[str, int] = {}  # tab title -> sheetId (filled by _ensure_ready)
+        self.last_was_new = False  # was the most recent upsert a new append?
+        self._last_upsert_row: int | None = None
 
     @contextmanager
     def _application_write_lock(self):
@@ -161,8 +163,6 @@ class GoogleSheetsRepository:
                 import fcntl
                 fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
             handle.close()
-        self.last_was_new = False  # was the most recent upsert a new append?
-        self._last_upsert_row: int | None = None
 
     # ── auth constructors ────────────────────────────────────────────────────
     @classmethod

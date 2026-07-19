@@ -1,26 +1,29 @@
-name: Approved application
+name: Prepare application package
+
+# Review-first flow only. This workflow builds and deterministically reviews
+# one exact, immutable application package (`application_cli prepare`),
+# archives the résumé to Google Drive, and syncs the package to the
+# authoritative Google Sheets row. It stops there.
+#
+# Inspecting the printed review findings, approving the package, autofilling
+# the browser, and clicking the employer's final Submit button remain manual,
+# local-only steps the applicant runs themselves on this same machine
+# (`application_cli show|approve|open|record-submitted|record-unknown`).
+# This workflow never runs those commands and never opens a browser.
 
 on:
   workflow_dispatch:
     inputs:
-      mode:
-        description: Preview is safe; live requires the protected environment and self-hosted runner
-        required: true
-        type: choice
-        options:
-          - preview
-          - live
-        default: preview
       job_key:
-        description: Exact job dedupe key from `python -m application_cli eligible`
+        description: Exact job id or dedupe key from `python -m application_cli eligible`
         required: true
         type: string
-      confirmation:
-        description: Enter APPLY for live mode
-        required: false
+      resume_path:
+        description: Path on this runner to the exact, visually-QA'd, two-page final résumé PDF
+        required: true
         type: string
-      salary_override:
-        description: Confirm an explicit salary review when published pay is unknown/unparseable
+      salary_reviewed:
+        description: Confirm you reviewed this vacancy despite unknown/unparseable salary
         required: false
         type: boolean
         default: false
@@ -29,13 +32,16 @@ permissions:
   contents: read
 
 concurrency:
-  group: approved-job-application
+  group: prepare-application-package
   cancel-in-progress: false
 
 jobs:
-  preview:
-    if: inputs.mode == 'preview'
-    runs-on: ubuntu-latest
+  prepare:
+    # Requires the self-hosted runner: the exact final résumé PDF and the
+    # visual-QA receipt bound to it live only on the applicant's own machine
+    # and are never committed to the repository.
+    runs-on: [self-hosted, Windows, job-apply]
+    environment: job-applications
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
@@ -46,76 +52,16 @@ jobs:
           cache: pip
 
       - name: Install and test
+        shell: powershell
         run: |
           python -m pip install -e ".[dev]"
           python -m pytest -q
 
-      - name: Register approval in the ephemeral preview workspace
-        env:
-          JOB_KEY: ${{ inputs.job_key }}
-        run: python -m application_cli approve "$JOB_KEY"
-
-      - name: Run application pipeline in forced dry-run mode
-        env:
-          AUTO_APPLY_LIVE: "false"
-          AUTO_APPLY_BROWSER: "false"
-          AUTO_APPLY_APPROVALS_FILE: data/application_approvals.json
-          APPLICANT_NAME: ${{ secrets.APPLICANT_NAME }}
-          APPLICANT_EMAIL: ${{ secrets.APPLICANT_EMAIL }}
-          APPLICANT_PHONE: ${{ secrets.APPLICANT_PHONE }}
-          APPLICANT_LINKEDIN: ${{ secrets.APPLICANT_LINKEDIN }}
-          APPLICANT_GITHUB: ${{ secrets.APPLICANT_GITHUB }}
-          RESUME_URL: ${{ secrets.RESUME_URL }}
-          RESUME_SUMMARY: ${{ secrets.RESUME_SUMMARY }}
-          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
-          SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
-        run: python -m runner
-
-  live:
-    if: >-
-      inputs.mode == 'live' &&
-      inputs.confirmation == 'APPLY' &&
-      github.ref == 'refs/heads/main'
-    runs-on: [self-hosted, Windows, job-apply]
-    environment: job-applications
-    timeout-minutes: 45
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-          cache: pip
-
-      - name: Install and verify
-        shell: powershell
-        run: |
-          python -m pip install -e ".[dev,browser]"
-          python -m playwright install chromium
-          python -m pytest -q
-
-      - name: Approve only the dispatched job key
+      - name: Prepare and deterministically review the exact package
         shell: powershell
         env:
           JOB_KEY: ${{ inputs.job_key }}
-        run: python -m application_cli approve "$env:JOB_KEY"
-
-      - name: Record explicit salary review for the dispatched job key
-        if: inputs.salary_override == true
-        shell: powershell
-        env:
-          JOB_KEY: ${{ inputs.job_key }}
-        run: python -m application_cli salary-override "$env:JOB_KEY"
-
-      - name: Submit approved application through visible browser
-        shell: powershell
-        env:
-          JOB_KEY: ${{ inputs.job_key }}
-          AUTO_APPLY_LIVE: "true"
-          AUTO_APPLY_BROWSER: "true"
-          AUTO_APPLY_HEADLESS: "false"
-          AUTO_APPLY_APPROVALS_FILE: data/application_approvals.json
-          AUTO_APPLY_BROWSER_PROFILE: ${{ vars.AUTO_APPLY_BROWSER_PROFILE }}
+          RESUME_PATH: ${{ inputs.resume_path }}
           JOBS_DB_PATH: ${{ vars.JOBS_DB_PATH }}
           APPLICANT_NAME: ${{ secrets.APPLICANT_NAME }}
           APPLICANT_EMAIL: ${{ secrets.APPLICANT_EMAIL }}
@@ -129,9 +75,26 @@ jobs:
           APPLICANT_NOTICE_PERIOD: ${{ secrets.APPLICANT_NOTICE_PERIOD }}
           APPLICANT_SALARY_EXPECTATION: ${{ secrets.APPLICANT_SALARY_EXPECTATION }}
           APPLICATION_ANSWERS_JSON: ${{ secrets.APPLICATION_ANSWERS_JSON }}
-          RESUME_PATH: ${{ vars.RESUME_PATH }}
           RESUME_URL: ${{ secrets.RESUME_URL }}
           RESUME_SUMMARY: ${{ secrets.RESUME_SUMMARY }}
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
           SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
-        run: python -m application_cli apply "$env:JOB_KEY"
+          APPLICATION_RESUME_DRIVE_FOLDER_ID: ${{ vars.APPLICATION_RESUME_DRIVE_FOLDER_ID }}
+          GOOGLE_DRIVE_CLIENT_ID: ${{ secrets.GOOGLE_DRIVE_CLIENT_ID }}
+          GOOGLE_DRIVE_CLIENT_SECRET: ${{ secrets.GOOGLE_DRIVE_CLIENT_SECRET }}
+          GOOGLE_DRIVE_REFRESH_TOKEN: ${{ secrets.GOOGLE_DRIVE_REFRESH_TOKEN }}
+        run: |
+          $extraArgs = @()
+          if ("${{ inputs.salary_reviewed }}" -eq "true") { $extraArgs += "--salary-reviewed" }
+          python -m application_cli prepare "$env:JOB_KEY" --resume "$env:RESUME_PATH" @extraArgs
+
+      - name: Remaining steps are manual and local only
+        if: always()
+        shell: powershell
+        run: |
+          Write-Host "This workflow only prepares and reviews the package above; it never approves,"
+          Write-Host "opens a browser, or submits anything. Continue locally on this machine with:"
+          Write-Host "  python application_cli.py show <package-id>"
+          Write-Host "  python application_cli.py approve <package-id>"
+          Write-Host "  python application_cli.py open <package-id>"
+          Write-Host "  python application_cli.py record-submitted <package-id>"

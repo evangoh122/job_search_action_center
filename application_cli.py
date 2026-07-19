@@ -267,7 +267,10 @@ def main() -> None:
             raise SystemExit(1)
         return
 
-    package = engine.package_store.load_package(args.package_id)
+    try:
+        package = engine.package_store.load_package(args.package_id)
+    except FileNotFoundError:
+        raise SystemExit(f"BLOCKED: package not found — {args.package_id}")
     if args.command == "sync":
         review = review_package(package)
         engine.package_store.save_review(review)

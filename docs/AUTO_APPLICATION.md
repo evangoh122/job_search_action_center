@@ -127,11 +127,13 @@ Application submission is deliberately split into two paths:
 
 - The daily job workflow fetches, deduplicates, scores, and writes roles and salary fields to
   Google Sheets. It always forces application dry-run mode.
-- `.github/workflows/application.yml` previews one exact job key or, on the protected
-  self-hosted runner, opens Playwright for a separately approved live submission.
+- `.github/workflows/application.yml` runs on the protected self-hosted runner and only
+  builds and deterministically reviews one exact package (`application_cli prepare`),
+  archives the résumé to Drive, and syncs it to Sheets. It stops there.
 
-Live applications require `mode=live`, confirmation `APPLY`, the `job-applications`
-environment, the `main` branch, and an exact dedupe key. CAPTCHA or an unfilled required
+Approving a prepared package, autofilling the browser, and clicking the employer's final
+Submit button are manual, local-only steps (`application_cli show|approve|open|record-submitted`)
+that the applicant runs themselves; no workflow automates them. CAPTCHA or an unfilled required
 question returns the application for manual review.
 
 ## Daily networking review

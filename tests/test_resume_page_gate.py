@@ -1,9 +1,15 @@
 from __future__ import annotations
 
+import shutil
 from pathlib import Path
 
 import pytest
 from PyPDF2 import PdfWriter
+
+requires_pdftoppm = pytest.mark.skipif(
+    shutil.which("pdftoppm") is None,
+    reason="poppler-utils (pdftoppm) not installed; required for visual QA previews",
+)
 
 from resume_page_gate import (
     ResumePaginationError,
@@ -48,6 +54,7 @@ def test_resume_page_gate_rejects_unreadable_pdf(tmp_path):
         require_two_page_resume(resume)
 
 
+@requires_pdftoppm
 def test_visual_qa_receipt_is_bound_to_exact_pdf_bytes(tmp_path):
     resume = _pdf(tmp_path / "resume.pdf", 2)
     root = tmp_path / "visual"
@@ -60,6 +67,7 @@ def test_visual_qa_receipt_is_bound_to_exact_pdf_bytes(tmp_path):
         require_visual_qa(resume, root)
 
 
+@requires_pdftoppm
 def test_visual_qa_rejects_missing_or_changed_previews(tmp_path):
     resume = _pdf(tmp_path / "resume.pdf", 2)
     root = tmp_path / "visual"
@@ -77,6 +85,7 @@ def test_visual_qa_rejects_missing_or_changed_previews(tmp_path):
         require_visual_qa(resume, root)
 
 
+@requires_pdftoppm
 def test_visual_qa_receipts_are_append_only_versions(tmp_path):
     resume = _pdf(tmp_path / "resume.pdf", 2)
     root = tmp_path / "visual"
@@ -90,6 +99,7 @@ def test_visual_qa_receipts_are_append_only_versions(tmp_path):
     ).receipt_id == first.receipt_id
 
 
+@requires_pdftoppm
 def test_visual_qa_accepts_only_the_exact_previews_shown_to_reviewer(tmp_path):
     resume = _pdf(tmp_path / "resume.pdf", 2)
     shown = render_visual_qa_previews(resume, tmp_path / "shown")

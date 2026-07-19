@@ -40,7 +40,10 @@ screenshots.
 ## Current implementation
 
 - `apply/review_engine.py` — immutable package hashes, deterministic review, Sheets receipt,
-  expiring single-use approval, vacancy revalidation, and browser-open gate.
+  expiring single-use approval, tracker-snapshot revalidation (checked against the last SQLite
+  discovery snapshot, not a live re-fetch of the employer posting — changes to the live posting
+  between discovery and `open` are caught by the human's visual review at browser-open time, not
+  by this automated gate), and browser-open gate.
 - `application_cli.py` — commands: `eligible`, `prepare`, `show`, `review`, `approve`, `revoke`,
   `open`, `record-submitted`, and `record-unknown`.
 - `apply/browser_submitter.py` — visible-browser fill-only boundary. It contains no final-submit

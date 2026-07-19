@@ -350,6 +350,17 @@ def test_upsert_application_writes_cover_letter_section(tmp_path):
     assert row[7] == "data governance"
 
 
+def test_upsert_application_leaves_last_upsert_state_readable(tmp_path):
+    """last_was_new/_last_upsert_row must reflect the upsert just performed, not reset to False/None."""
+    http, calls = _fake([])
+    draft, resume, archive = _authoritative_application(tmp_path)
+    drive = _VerifiedDrive()
+    repo = _repo(http)
+    repo.upsert_application(draft, resume_path=resume, archive=archive, drive_archive=drive)
+    assert repo.last_was_new is True
+    assert repo._last_upsert_row == 2
+
+
 def test_upsert_application_rejects_missing_cover_letter():
     """Verify the upsert application rejects missing cover letter scenario."""
     http, _ = _fake([])

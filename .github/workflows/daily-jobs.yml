@@ -48,7 +48,8 @@ jobs:
           # Telegram digest of new roles to apply for.
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-          # Scheduled CI is always dry-run. Live submission exists only in application.yml.
+          # Scheduled CI is always dry-run. application.yml only prepares and reviews packages;
+          # approving, autofilling the browser, and submitting are manual, local-only steps.
           AUTO_APPLY_LIVE: "false"
           AUTO_APPLY_BROWSER: "false"
         run: python runner.py

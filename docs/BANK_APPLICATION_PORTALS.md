@@ -106,7 +106,7 @@ creating a new one.
 2. Confirm that a conclusive normalized SGD range reaches the S$12,000 monthly floor. Unknown or
    unparseable salaries remain visible for review but cannot proceed to live execution unless the
    applicant records an explicit override for that exact vacancy with
-   `python -m application_cli salary-override "<job-key>"`.
+   `python -m application_cli prepare "<job-key>" --resume "<path>" --salary-reviewed`.
 3. Open the employer's official application portal in a visible browser.
 4. The applicant completes account creation, password entry, MFA, CAPTCHA, and legal consent.
 5. Capture the common profile sections and all visible requisition-specific question labels.
@@ -118,16 +118,18 @@ creating a new one.
 
 ## CI/CD boundary
 
-Scheduled discovery is always dry-run. A live browser application must run on the protected
-self-hosted Windows runner and requires all of the following:
+Scheduled discovery is always dry-run. `.github/workflows/application.yml` runs on the
+protected self-hosted Windows runner and the `job-applications` environment, but it only
+builds and deterministically reviews one exact package (`application_cli prepare`), archives
+the résumé to Drive, and syncs it to Sheets — it never opens a browser and never submits
+anything. A live browser application (`application_cli open`) is a manual, local-only command
+the applicant runs themselves on that same machine, and requires all of the following:
 
-- the `job-applications` protected environment;
-- `mode=live`;
-- confirmation value `APPLY`;
-- the exact job dedupe key;
-- an approval entry for that exact vacancy;
+- an existing prepared package that passed deterministic review;
+- the exact job dedupe key backing that package;
+- a single-use, short-lived approval entry for that exact package (`application_cli approve`);
 - a conclusive normalized salary meeting the S$12,000 monthly floor, or a separately recorded
-  salary-review override for that exact vacancy;
+  salary-review override for that exact vacancy (`prepare --salary-reviewed`);
 - a visible authenticated browser session.
 
 GitHub-hosted runners must not receive reusable portal passwords or browser profiles. CAPTCHA,
