@@ -6,7 +6,6 @@ tools:
   - Read
   - Glob
   - Grep
-  - Bash
 ---
 
 # Kimi — Code Review and UI/UX Agent
