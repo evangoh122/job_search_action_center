@@ -28,9 +28,9 @@ const previewJobs: Job[] = [
 function statusTone(status: string): "grey" | "blue" | "green" | "red" | "yellow" {
   const normalized = status.trim().toLowerCase();
   if (!normalized) return "grey";
+  if (normalized.includes("reject")) return "red";
   if (normalized.includes("interview")) return "blue";
   if (normalized.includes("offer")) return "green";
-  if (normalized.includes("reject")) return "red";
   if (normalized.includes("applied")) return "yellow";
   return "grey";
 }
@@ -195,17 +195,16 @@ export default function Home() {
         {activeTab !== 5 && <>
         <header className="top"><div><p>APPLY</p><h2>Week 1 · Build momentum deliberately</h2></div><div className="top-actions">
           <div className="daily-checklist">
-            {dailyChecklistDone ? <span className="daily-checklist-done">Done for today! 🎯</span> : <>
-              <span className="daily-checklist-label">Apply to 2 roles today</span>
-              <div className="daily-checklist-items">{dailyChecklist.map((checked,index)=><label key={index}><input type="checkbox" checked={checked} onChange={()=>toggleDailyRole(index)} />Role {index+1}</label>)}</div>
-            </>}
+            {dailyChecklistDone && <span className="daily-checklist-done">Done for today! 🎯</span>}
+            <span className="daily-checklist-label">Apply to 2 roles today</span>
+            <div className="daily-checklist-items">{dailyChecklist.map((checked,index)=><label key={index}><input type="checkbox" checked={checked} onChange={()=>toggleDailyRole(index)} />Role {index+1}</label>)}</div>
           </div>
           <button className="quiet" disabled title="Coming soon">Log learning gap</button><span className="sync"><i/> {sheetLabel}</span></div></header>
 
         <section className="briefing" id="next-action">
           <div className="brief-main"><p className="gold-label">YOUR #1 NEXT ACTION — RANKED BY FIT</p><div className="company"><span>{job.company.slice(0,1).toUpperCase()}</span>{job.company}</div><h1>{job.title}</h1><div className="meta"><span>Singapore</span><span>Hybrid</span><span>Backend ranked</span><span>{sheetState === "live" ? "Live sheet record" : "Preview record"}</span></div><div className="why">{job.reason.split(" · ").map(reason=><span key={reason}>{reason}</span>)}</div></div>
           <div className="dial-area"><div className="dial" style={{background:`conic-gradient(var(--brass) 0 ${job.score ?? 0}%, #4a4438 ${job.score ?? 0}%)`}}><div><strong>{job.score ?? "—"}</strong><small>{job.score === null ? "PENDING" : "FIT"}</small></div></div><div className="badges"><span>Tier {job.tier}</span><span>{job.status}</span></div></div>
-          <div className="brief-actions"><button className="go" onClick={openModal}>Start application package</button><span className={`status-pill lg tone-${statusTone(job.status)}`}>{job.status || "No status"}</span><button className="text-action" disabled title="Coming soon">Skip for today</button><p>You always submit on the employer&apos;s own form. Nothing here auto-submits.</p></div>
+          <div className="brief-actions"><button className="go" onClick={openModal}>Start application package</button><span className={`status-pill lg tone-${statusTone(job.status)}`}>{job.status || "No status"}</span><button className="ghost" disabled={!job.url} onClick={()=>job.url&&window.open(job.url,"_blank","noopener,noreferrer")}>Open role posting ↗</button><button className="text-action" disabled title="Coming soon">Skip for today</button><p>You always submit on the employer&apos;s own form. Nothing here auto-submits.</p></div>
           <blockquote>One strong application beats ten rushed ones.</blockquote>
         </section>
 
