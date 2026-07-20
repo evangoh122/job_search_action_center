@@ -25,14 +25,23 @@ const previewJobs: Job[] = [
   { key: "preview-civic", company: "Civic Digital", title: "AI Product Lead", score: 84, tier: "B", status: "New", reason: "Responsible AI · Product strategy", brief: "Shape responsible AI products from discovery through scaled adoption.", url: "" },
 ];
 
-function statusTone(status: string): "grey" | "blue" | "green" | "red" | "yellow" {
-  const normalized = status.trim().toLowerCase();
-  if (!normalized) return "grey";
-  if (normalized.includes("reject")) return "red";
-  if (normalized.includes("interview")) return "blue";
-  if (normalized.includes("offer")) return "green";
-  if (normalized.includes("applied")) return "yellow";
-  return "grey";
+type StatusTone = "grey" | "blue" | "green" | "red" | "yellow";
+
+const statusTones: Record<string, StatusTone> = {
+  new: "grey",
+  drafting: "grey",
+  applied: "yellow",
+  interview: "blue",
+  offer: "green",
+  rejected: "red",
+};
+
+function statusTone(status: string): StatusTone {
+  return statusTones[status.trim().toLowerCase()] ?? "grey";
+}
+
+function statusLabel(status: string): string {
+  return status.trim() || "No status";
 }
 
 function fromSheet(row: SheetJob): Job | null {
@@ -195,7 +204,7 @@ export default function Home() {
         {activeTab !== 5 && <>
         <header className="top"><div><p>APPLY</p><h2>Week 1 · Build momentum deliberately</h2></div><div className="top-actions">
           <div className="daily-checklist">
-            {dailyChecklistDone && <span className="daily-checklist-done">Done for today! 🎯</span>}
+            <span className="daily-checklist-done" role="status" aria-live="polite" aria-atomic="true">{dailyChecklistDone && "Done for today! 🎯"}</span>
             <span className="daily-checklist-label">Apply to 2 roles today</span>
             <div className="daily-checklist-items">{dailyChecklist.map((checked,index)=><label key={index}><input type="checkbox" checked={checked} onChange={()=>toggleDailyRole(index)} />Role {index+1}</label>)}</div>
           </div>
@@ -203,8 +212,8 @@ export default function Home() {
 
         <section className="briefing" id="next-action">
           <div className="brief-main"><p className="gold-label">YOUR #1 NEXT ACTION — RANKED BY FIT</p><div className="company"><span>{job.company.slice(0,1).toUpperCase()}</span>{job.company}</div><h1>{job.title}</h1><div className="meta"><span>Singapore</span><span>Hybrid</span><span>Backend ranked</span><span>{sheetState === "live" ? "Live sheet record" : "Preview record"}</span></div><div className="why">{job.reason.split(" · ").map(reason=><span key={reason}>{reason}</span>)}</div></div>
-          <div className="dial-area"><div className="dial" style={{background:`conic-gradient(var(--brass) 0 ${job.score ?? 0}%, #4a4438 ${job.score ?? 0}%)`}}><div><strong>{job.score ?? "—"}</strong><small>{job.score === null ? "PENDING" : "FIT"}</small></div></div><div className="badges"><span>Tier {job.tier}</span><span>{job.status}</span></div></div>
-          <div className="brief-actions"><button className="go" onClick={openModal}>Start application package</button><span className={`status-pill lg tone-${statusTone(job.status)}`}>{job.status || "No status"}</span><button className="ghost" disabled={!job.url} onClick={()=>job.url&&window.open(job.url,"_blank","noopener,noreferrer")}>Open role posting ↗</button><button className="text-action" disabled title="Coming soon">Skip for today</button><p>You always submit on the employer&apos;s own form. Nothing here auto-submits.</p></div>
+          <div className="dial-area"><div className="dial" style={{background:`conic-gradient(var(--brass) 0 ${job.score ?? 0}%, #4a4438 ${job.score ?? 0}%)`}}><div><strong>{job.score ?? "—"}</strong><small>{job.score === null ? "PENDING" : "FIT"}</small></div></div><div className="badges"><span>Tier {job.tier}</span></div></div>
+          <div className="brief-actions"><button className="go" onClick={openModal}>Start application package</button><span className={`status-pill lg tone-${statusTone(job.status)}`}>{statusLabel(job.status)}</span><button className="ghost" disabled={!job.url} onClick={()=>job.url&&window.open(job.url,"_blank","noopener,noreferrer")}>Open role posting ↗</button><button className="text-action" disabled title="Coming soon">Skip for today</button><p>You always submit on the employer&apos;s own form. Nothing here auto-submits.</p></div>
           <blockquote>One strong application beats ten rushed ones.</blockquote>
         </section>
 
@@ -213,7 +222,7 @@ export default function Home() {
             <div className="section-head"><div><p>RANKED BY BACKEND FIT</p><h2>Application queue</h2></div><span>{visibleJobs.length}{normalizedQuery ? ` / ${jobs.length}` : ""} ROLES</span></div>
             <label className="search"><span>Search roles</span><input placeholder="Company or title" value={query} onChange={(event)=>setQuery(event.target.value)} /></label>
             <div className="filters"><button className="on">All</button><button>Tier A</button><button>Tier B</button></div>
-            <div className="job-stack" aria-label="Google Sheets job list">{visibleJobs.map((item)=>{const index=jobs.findIndex(candidate=>candidate.key===item.key);return <button className={selected===index?"job selected":"job"} onClick={()=>setSelected(index)} key={item.key}><span className="ordinal">{String(index+1).padStart(2,"0")}</span><span className="job-copy"><strong>{item.title}</strong><small>{item.company}</small><span className={`status-pill tone-${statusTone(item.status)}`}>{item.status || "No status"}</span></span><span className="job-score"><b>{item.score ?? "—"}</b><small>{item.score === null ? "PENDING" : "FIT"}</small></span></button>})}</div>
+            <div className="job-stack" aria-label="Google Sheets job list">{visibleJobs.map((item)=>{const index=jobs.findIndex(candidate=>candidate.key===item.key);return <button className={selected===index?"job selected":"job"} onClick={()=>setSelected(index)} key={item.key}><span className="ordinal">{String(index+1).padStart(2,"0")}</span><span className="job-copy"><strong>{item.title}</strong><small>{item.company}</small><span className={`status-pill tone-${statusTone(item.status)}`}>{statusLabel(item.status)}</span></span><span className="job-score"><b>{item.score ?? "—"}</b><small>{item.score === null ? "PENDING" : "FIT"}</small></span></button>})}</div>
           </section>
 
           <section className="paper evidence">
