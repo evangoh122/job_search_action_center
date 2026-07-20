@@ -32,12 +32,9 @@ function fromSheet(row: SheetJob): Job | null {
   const rawScore = row.Score?.trim() || "";
   const hasNumericScore = /^\d+(?:\.\d+)?$/.test(rawScore);
   const boundedScore = hasNumericScore ? Math.max(0, Math.min(100, Math.round(Number(rawScore)))) : null;
-  const legacyShifted = !hasNumericScore && /^[ABC]$/i.test(rawScore);
-  const shiftedScoreRaw = legacyShifted ? row.ApplicationLink?.trim() || "" : "";
-  const hasShiftedNumericScore = /^\d+(?:\.\d+)?$/.test(shiftedScoreRaw);
-  const score = legacyShifted
-    ? (hasShiftedNumericScore ? Math.max(0, Math.min(100, Math.round(Number(shiftedScoreRaw)))) : null)
-    : boundedScore;
+  const rawAppLink = (row.ApplicationLink ?? "").trim();
+  const legacyShifted = rawAppLink !== "" && /^\d+(\.\d+)?$/.test(rawAppLink);
+  const score = legacyShifted ? Math.max(0, Math.min(100, Math.round(Number(rawAppLink)))) : boundedScore;
   const tier = (legacyShifted ? rawScore : row.Tier)?.trim() || (score === null ? "Pending" : score >= 90 ? "A" : score >= 75 ? "B" : "C");
   const status = (legacyShifted ? row.Tier : row.Status)?.trim() || "New";
   const source = (legacyShifted ? row.Status : row.Source)?.trim() || "Google Sheets";
