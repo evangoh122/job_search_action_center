@@ -63,6 +63,7 @@ export default function Home() {
   const [blocks, setBlocks] = useState([0, 1]);
   const [jobs, setJobs] = useState<Job[]>(previewJobs);
   const [sheetState, setSheetState] = useState<"loading" | "live" | "preview">("loading");
+  const [sheetLoaded, setSheetLoaded] = useState(false);
   const [query, setQuery] = useState("");
   const job = jobs[selected];
   const normalizedQuery = query.trim().toLowerCase();
@@ -155,25 +156,27 @@ export default function Home() {
   const sheetLabel = sheetState === "live" ? "Sheets live · backend fit" : sheetState === "loading" ? "Connecting to Sheets…" : "Sheets preview · sample fit";
   return <>
     <style>{commandDeckCss}</style>
-    <a className="skip" href="#next-action">Skip to next action</a>
+    {activeTab !== 5 && <a className="skip" href="#next-action">Skip to next action</a>}
     <div className="deck">
       <aside className="rail">
         <div className="wordmark"><span>J</span><div><b>Job Action Center</b><small>PRIVATE · SHEETS-BACKED</small></div></div>
         <p className="rail-label">CAMPAIGN</p>
-        <nav>{["Apply","Today","Pipeline","Network","Review"].map((item,index)=><button className={index===0?"active":""} key={item}><i>{String(index+1).padStart(2,"0")}</i>{item}</button>)}</nav>
+        <nav>{["Apply","Today","Pipeline","Network","Review","Sheet"].map((item,index)=>{const enabled=index===0||index===5;return <button className={activeTab===index?"active":""} disabled={!enabled} title={!enabled?"Coming soon":undefined} onClick={enabled?()=>setActiveTab(index):undefined} key={item}><i>{index===5?"▦":String(index+1).padStart(2,"0")}</i>{item}</button>})}</nav>
         <div className="week-card"><div><span>Week 1 of 15</span><b>Offer by Nov 1</b></div><div className="segments" aria-label="Week 1 of 15">{Array.from({length:15},(_,i)=><i className={i===0?"filled":""} key={i}/>)}</div><small>Singapore · 15-week campaign</small><p><i/> {sheetLabel}</p></div>
       </aside>
 
       <main className={activeTab === 5 ? "canvas canvas-sheet" : "canvas"}>
-        {activeTab === 5 ? (
-          <iframe
-            className="sheet-frame"
-            src="https://docs.google.com/spreadsheets/d/14-8e2qfmDfyFkNJqiErgGyq1LujUw1eWoyvKw9Ap8T4/edit"
-            allow="*"
-            allowFullScreen
-            title="Job tracker Google Sheet"
-          />
-        ) : <>
+        <iframe
+          className="sheet-frame"
+          src="https://docs.google.com/spreadsheets/d/14-8e2qfmDfyFkNJqiErgGyq1LujUw1eWoyvKw9Ap8T4/edit"
+          allow="fullscreen"
+          allowFullScreen
+          title="Job tracker Google Sheet"
+          style={{ display: activeTab === 5 ? "block" : "none" }}
+          onLoad={() => setSheetLoaded(true)}
+        />
+        {activeTab === 5 && !sheetLoaded && <div className="sheet-loading">Loading…</div>}
+        {activeTab !== 5 && <>
         <header className="top"><div><p>APPLY</p><h2>Week 1 · Build momentum deliberately</h2></div><div className="top-actions"><button className="quiet" disabled title="Coming soon">Log learning gap</button><span className="sync"><i/> {sheetLabel}</span></div></header>
 
         <section className="briefing" id="next-action">
