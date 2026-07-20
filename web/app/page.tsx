@@ -58,10 +58,12 @@ const resumeBlocks = [
 
 export default function Home() {
   const [selected, setSelected] = useState(0);
+  const [activeTab, setActiveTab] = useState(0);
   const [modal, setModal] = useState(false);
   const [blocks, setBlocks] = useState([0, 1]);
   const [jobs, setJobs] = useState<Job[]>(previewJobs);
   const [sheetState, setSheetState] = useState<"loading" | "live" | "preview">("loading");
+  const [sheetLoaded, setSheetLoaded] = useState(false);
   const [query, setQuery] = useState("");
   const job = jobs[selected];
   const normalizedQuery = query.trim().toLowerCase();
@@ -154,16 +156,27 @@ export default function Home() {
   const sheetLabel = sheetState === "live" ? "Sheets live · backend fit" : sheetState === "loading" ? "Connecting to Sheets…" : "Sheets preview · sample fit";
   return <>
     <style>{commandDeckCss}</style>
-    <a className="skip" href="#next-action">Skip to next action</a>
+    {activeTab !== 5 && <a className="skip" href="#next-action">Skip to next action</a>}
     <div className="deck">
       <aside className="rail">
         <div className="wordmark"><span>J</span><div><b>Job Action Center</b><small>PRIVATE · SHEETS-BACKED</small></div></div>
         <p className="rail-label">CAMPAIGN</p>
-        <nav>{["Apply","Today","Pipeline","Network","Review"].map((item,index)=><button className={index===0?"active":""} key={item}><i>{String(index+1).padStart(2,"0")}</i>{item}</button>)}</nav>
+        <nav>{["Apply","Today","Pipeline","Network","Review","Sheet"].map((item,index)=>{const enabled=index===0||index===5;return <button className={activeTab===index?"active":""} disabled={!enabled} title={!enabled?"Coming soon":undefined} onClick={enabled?()=>setActiveTab(index):undefined} key={item}><i>{index===5?"▦":String(index+1).padStart(2,"0")}</i>{item}</button>})}</nav>
         <div className="week-card"><div><span>Week 1 of 15</span><b>Offer by Nov 1</b></div><div className="segments" aria-label="Week 1 of 15">{Array.from({length:15},(_,i)=><i className={i===0?"filled":""} key={i}/>)}</div><small>Singapore · 15-week campaign</small><p><i/> {sheetLabel}</p></div>
       </aside>
 
-      <main className="canvas">
+      <main className={activeTab === 5 ? "canvas canvas-sheet" : "canvas"}>
+        <iframe
+          className="sheet-frame"
+          src="https://docs.google.com/spreadsheets/d/14-8e2qfmDfyFkNJqiErgGyq1LujUw1eWoyvKw9Ap8T4/edit"
+          allow="fullscreen"
+          allowFullScreen
+          title="Job tracker Google Sheet"
+          style={{ display: activeTab === 5 ? "block" : "none" }}
+          onLoad={() => setSheetLoaded(true)}
+        />
+        {activeTab === 5 && !sheetLoaded && <div className="sheet-loading">Loading…</div>}
+        {activeTab !== 5 && <>
         <header className="top"><div><p>APPLY</p><h2>Week 1 · Build momentum deliberately</h2></div><div className="top-actions"><button className="quiet" disabled title="Coming soon">Log learning gap</button><span className="sync"><i/> {sheetLabel}</span></div></header>
 
         <section className="briefing" id="next-action">
@@ -194,8 +207,9 @@ export default function Home() {
             <section className="paper follow"><p>BEFORE MONDAY</p><h3>Source 5 coffee chats</h3><span>0 of 5 ready</span><button disabled title="Coming soon">Open networking</button></section>
           </aside>
         </div>
+        </>}
       </main>
-      <nav className="bottom-nav">{["Apply","Today","Pipeline","Network","Review"].map((item,index)=><button className={index===0?"active":""} disabled={index>0} title={index>0?"Coming soon":undefined} key={item}><span>{String(index+1).padStart(2,"0")}</span>{item}</button>)}</nav>
+      <nav className="bottom-nav">{["Apply","Today","Pipeline","Network","Review","Sheet"].map((item,index)=>{const enabled=index===0||index===5;return <button className={activeTab===index?"active":""} disabled={!enabled} title={!enabled?"Coming soon":undefined} onClick={enabled?()=>setActiveTab(index):undefined} key={item}><span>{String(index+1).padStart(2,"0")}</span>{item}</button>})}</nav>
     </div>
 
     {modal&&<div className="scrim"><section className="package" role="dialog" aria-modal="true" aria-labelledby="package-title" ref={modalRef} tabIndex={-1}><header><div><p>APPLICATION PACKAGE · STEP 2 OF 4</p><h2 id="package-title">{job.company} — {job.title}</h2></div><button onClick={closeModal}>Close</button></header><ol><li className="done">1 Evidence</li><li className="current">2 Master blocks</li><li>3 Open & submit</li><li>4 Log result</li></ol><div className="package-body"><h3>Select immutable master-resume blocks</h3><p>Content is locked and copied byte-for-byte. Edit the master resume at its source, never here.</p>{resumeBlocks.map((text,index)=><label className={blocks.includes(index)?"resume-block checked":"resume-block"} key={text}><input type="checkbox" checked={blocks.includes(index)} onChange={()=>setBlocks(current=>current.includes(index)?current.filter(i=>i!==index):[...current,index])}/><span><b>VERBATIM MASTER BLOCK {index+1}</b><small>{text}</small></span></label>)}<div className="manual-note"><b>Manual submission only</b><p>When the package is ready, you will open the employer form in a separate tab and submit it yourself.</p></div></div><footer><span>Local preview draft · Sheets writes disabled</span><div><button className="ghost-paper" onClick={closeModal}>Cancel</button><button className="go" disabled={!blocks.length} ref={continueButtonRef} title={!blocks.length?"Select at least one block to continue":undefined}>Continue to review</button></div></footer></section></div>}
