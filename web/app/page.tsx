@@ -32,20 +32,22 @@ function fromSheet(row: SheetJob): Job | null {
   const rawScore = row.Score?.trim() || "";
   const hasNumericScore = /^\d+(?:\.\d+)?$/.test(rawScore);
   const boundedScore = hasNumericScore ? Math.max(0, Math.min(100, Math.round(Number(rawScore)))) : null;
-  const legacyShifted = !hasNumericScore && /^[ABC]$/i.test(rawScore);
-  const tier = (legacyShifted ? rawScore : row.Tier)?.trim() || (boundedScore === null ? "Pending" : boundedScore >= 90 ? "A" : boundedScore >= 75 ? "B" : "C");
+  const rawAppLink = (row.ApplicationLink ?? "").trim();
+  const legacyShifted = rawAppLink !== "" && /^\d+(\.\d+)?$/.test(rawAppLink);
+  const score = legacyShifted ? Math.max(0, Math.min(100, Math.round(Number(rawAppLink)))) : boundedScore;
+  const tier = (legacyShifted ? rawScore : row.Tier)?.trim() || (score === null ? "Pending" : score >= 90 ? "A" : score >= 75 ? "B" : "C");
   const status = (legacyShifted ? row.Tier : row.Status)?.trim() || "New";
   const source = (legacyShifted ? row.Status : row.Source)?.trim() || "Google Sheets";
   return {
     key: row.DedupeKey?.trim() || `${company}:${title}`,
     company,
     title,
-    score: boundedScore,
+    score,
     tier,
     status,
-    reason: `${boundedScore === null ? "Fit score pending" : `${boundedScore}% backend fit`} · Tier ${tier} · ${source}`,
-    brief: legacyShifted ? "Role description unavailable for this legacy sheet row." : row.Description?.trim() || "No role description has been stored in the Jobs sheet yet.",
-    url: row.ApplicationLink?.trim() || row.URL?.trim() || "",
+    reason: `${score === null ? "Fit score pending" : `${score}% backend fit`} · Tier ${tier} · ${source}`,
+    brief: (legacyShifted ? row.Posted : row.Description)?.trim() || "No role description has been stored in the Jobs sheet yet.",
+    url: legacyShifted ? (row.URL?.trim() || "") : (row.ApplicationLink?.trim() || row.URL?.trim() || ""),
   };
 }
 const resumeBlocks = [
