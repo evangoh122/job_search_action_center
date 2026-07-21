@@ -135,7 +135,14 @@ def _run_outreach(job, repo, finder, drafter, applicant_name, day,
         if repo.count_actions("outreach", day) >= DAILY_CAPS["outreach"]:
             logger.warning("Daily outreach cap reached (%s)", DAILY_CAPS["outreach"])
             break
-        drafter.create_draft(draft)
+        try:
+            drafter.create_draft(draft)
+        except Exception:
+            # Gmail is best-effort: an expired refresh token or transient API error
+            # must not abort the core job-pull. Skip outreach for this run and move on.
+            logger.warning("Gmail draft failed for %s — skipping outreach", draft.to_email,
+                           exc_info=True)
+            break
         repo.incr_action("outreach", day)
         if tracker is not None:
             try:

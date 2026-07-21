@@ -125,3 +125,19 @@ def test_outreach_disabled_without_finder():
     repo = SqliteRepository()
     day = datetime.now().date().isoformat()
     assert runner._run_outreach(_qualified_job(), repo, None, None, "", day) == 0
+
+
+class _FailingDrafter:
+    """Simulates an expired Gmail refresh token: create_draft always raises."""
+
+    def create_draft(self, draft):
+        raise RuntimeError("400 Bad Request from oauth2.googleapis.com/token")
+
+
+def test_outreach_survives_gmail_failure():
+    # A dead Gmail token must not abort the run: _run_outreach swallows the error
+    # and reports zero drafts instead of propagating the exception.
+    repo = SqliteRepository()
+    day = datetime.now().date().isoformat()
+    n = runner._run_outreach(_qualified_job(), repo, _FakeFinder(), _FailingDrafter(), "", day)
+    assert n == 0
