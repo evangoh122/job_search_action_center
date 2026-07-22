@@ -43,4 +43,12 @@ export const commandDeckCss = String.raw`
 .rating-card .feedback{margin:0;line-height:1.5;opacity:.9}
 .interview-error{padding:.75rem 1rem;border-radius:.5rem;background:rgba(179,38,30,.08);border:1px solid rgba(179,38,30,.35);color:var(--danger)}
 @media (max-width:640px){.interview-pane .section-head,.interview-controls,.recorder-row{flex-direction:column;align-items:stretch}.interview-controls select{width:100%}.rating-grid{grid-template-columns:1fr}}
+.fit-verdict{grid-template-columns:150px minmax(0,1fr)}
+.fit-verdict h3{font:600 clamp(22px,2.4vw,30px)/1.1 Fraunces,Georgia,serif;margin:6px 0 10px;color:var(--paper)}
+.fit-summary{margin:8px 0 0;color:#cabfa9;font-size:13px;line-height:1.5}
+.fit-lists{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin:18px 0}
+.fit-lists .top-fixes ul{margin:.4rem 0 0;padding:0;list-style:none}
+.fit-lists .top-fixes li{display:flex;align-items:flex-start;gap:8px;margin:.35rem 0;line-height:1.4}
+@media (max-width:767px){.fit-verdict{grid-template-columns:82px minmax(0,1fr)}}
+@media (max-width:640px){.fit-lists{grid-template-columns:1fr}}
 `;
