@@ -34,6 +34,10 @@ interface AnthropicMessagesResponse {
 }
 
 const REQUEST_TIMEOUT_MS = 120_000;
+// These models force extended thinking on; max_tokens must exceed this budget
+// or the answer is truncated. The caller's maxTokens is the ANSWER budget and
+// is added on top of the thinking budget.
+const THINKING_BUDGET_TOKENS = 6000;
 
 /**
  * Calls an Anthropic-compatible messages endpoint for the given provider.
@@ -51,8 +55,9 @@ export async function askModel(
     throw new Error(`${config.envKey} is not configured`);
   }
 
-  // The model requires max_tokens to exceed the thinking budget.
-  const maxTokens = Math.max(opts.maxTokens ?? 4000, 8000);
+  // Answer budget (caller's request) on top of the thinking budget, so the
+  // model can reason AND emit a complete answer without over-provisioning.
+  const maxTokens = THINKING_BUDGET_TOKENS + (opts.maxTokens ?? 2000);
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
@@ -70,7 +75,7 @@ export async function askModel(
       body: JSON.stringify({
         model: config.model,
         max_tokens: maxTokens,
-        thinking: { type: "enabled", budget_tokens: 6000 },
+        thinking: { type: "enabled", budget_tokens: THINKING_BUDGET_TOKENS },
         messages: [{ role: "user", content: prompt }],
         ...(opts.system ? { system: opts.system } : {}),
       }),

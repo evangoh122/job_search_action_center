@@ -394,6 +394,7 @@ export default function InterviewPanel({
 
       <textarea
         className="transcript-area"
+        aria-label="Your interview answer transcript"
         placeholder="Your answer will appear here. Edit it directly or type your own."
         value={transcript}
         onChange={(e) => setTranscript(e.target.value)}
