@@ -28,7 +28,7 @@ let tokenCache: TokenCache = null;
 
 const SHEETS_BASE = "https://sheets.googleapis.com/v4/spreadsheets";
 const TAB_HEADERS = {
-  Jobs: ["DedupeKey", "Title", "Company", "URL", "ApplicationLink", "Score", "Tier", "Status", "Source", "Posted", "Description", "Aging", "Applied", "Salary Min", "Salary Max", "Salary Average", "Salary Currency", "Salary Period"],
+  Jobs: ["DedupeKey", "Title", "Company", "URL", "Score", "Tier", "Status", "Source", "Posted", "Description", "Aging", "Applied"],
   Applications: ["Key", "Job", "Company", "Title", "Application Link", "Resume File", "Cover Letter", "Matched Keywords", "Status", "Updated", "Resume Block IDs"],
   "Networking Tracker": ["Key", "Name", "Email", "Company", "Role", "LinkedIn", "Source", "Last Contacted", "Status", "Notes", "Follow Up Due"],
   "OKR Events": ["Key", "Date", "Kind", "Count", "Minutes", "Job", "Contact", "Notes", "Created"],
@@ -330,7 +330,8 @@ export async function updateJobStatus(env: SheetsEnv, input: any): Promise<void>
   while (row.length < headers.length) row.push("");
   row[statusIndex] = input.status;
   if (input.status === "applied" && appliedIndex >= 0) row[appliedIndex] = input.date || new Date().toISOString().slice(0, 10);
-  await updateValues(env, "Jobs", `A${found + 1}:R${found + 1}`, [row.slice(0, 18)]);
+  const lastColumn = String.fromCharCode(64 + Math.min(headers.length, 26));
+  await updateValues(env, "Jobs", `A${found + 1}:${lastColumn}${found + 1}`, [row.slice(0, headers.length)]);
 }
 
 /**
