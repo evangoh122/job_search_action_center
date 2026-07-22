@@ -23,4 +23,24 @@ export const commandDeckCss = String.raw`
   .review-grid{grid-template-columns:1fr}
   .review-panes{gap:1rem}
 }
+.interview-pane{display:flex;flex-direction:column;gap:1.25rem}
+.interview-pane .section-head{align-items:center;justify-content:space-between;gap:1rem}
+.interview-spinner{display:inline-block;width:1rem;height:1rem;margin-right:.5rem;border:2px solid rgba(255,255,255,.2);border-top-color:var(--brass,#bfa15f);border-radius:50%;animation:interview-spin .8s linear infinite;vertical-align:middle}
+@keyframes interview-spin{to{transform:rotate(360deg)}}
+.interview-controls{display:flex;flex-wrap:wrap;align-items:center;gap:.75rem}
+.interview-controls select{min-width:12rem;flex:1 1 0;padding:.5rem .75rem;border-radius:.5rem;border:1px solid rgba(255,255,255,.12);background:rgba(0,0,0,.25);color:inherit}
+.recorder-row{display:flex;flex-wrap:wrap;align-items:center;gap:1rem}
+.record-pulse{width:.75rem;height:.75rem;border-radius:9999px;background:#e74c3c;animation:record-pulse 1.2s infinite}
+@keyframes record-pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(1.35)}}
+.transcript-area{width:100%;min-height:8rem;padding:.75rem;border-radius:.5rem;border:1px solid rgba(255,255,255,.12);background:rgba(0,0,0,.25);color:inherit;font:inherit;line-height:1.5;resize:vertical}
+.transcript-area:focus{outline:2px solid var(--brass,#bfa15f);outline-offset:2px}
+.rating-results{display:flex;flex-direction:column;gap:1.25rem}
+.consolidated-overall{display:flex;align-items:center;gap:.75rem;font-size:1.25rem;font-weight:700}
+.top-fixes ul,.rating-card .improvements{margin:0;padding-left:1.1rem}
+.top-fixes li,.rating-card .improvements li{margin-bottom:.35rem}
+.rating-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:1rem}
+.rating-card{display:flex;flex-direction:column;gap:.75rem}
+.rating-card .feedback{margin:0;line-height:1.5;opacity:.9}
+.interview-error{padding:.75rem 1rem;border-radius:.5rem;background:rgba(231,76,60,.15);border:1px solid rgba(231,76,60,.35);color:#ff9f9f}
+@media (max-width:640px){.interview-pane .section-head,.interview-controls,.recorder-row{flex-direction:column;align-items:stretch}.interview-controls select{width:100%}.rating-grid{grid-template-columns:1fr}}
 `;
