@@ -39,8 +39,10 @@ function normalizeFit(model: ModelProvider, raw: unknown): ParsedFit | null {
   const summary = typeof raw.summary === "string" ? raw.summary.trim() : "";
   const matched = stringList(raw.matched, 4);
   const missing = stringList(raw.missing, 4);
-  // Reject a payload with no usable signal at all (likely hallucinated/empty).
-  if (!hasFit && !summary && matched.length === 0 && missing.length === 0) return null;
+  // The fit number is the whole point — a payload without one is useless for the
+  // consensus average (defaulting it to 0 would silently drag the mean down), so
+  // reject it rather than admit it.
+  if (!hasFit) return null;
   return { model, fit: clampFit(raw.fit), matched, missing, summary };
 }
 
@@ -92,9 +94,10 @@ export async function POST(request: NextRequest) {
       resume = resumeFromPayload(payload);
     }
     if (!resume) {
+      // A missing resume is a server-side configuration gap, not a malformed request.
       return NextResponse.json(
         { error: "No master resume is configured. Add rows to the Master Resume Blocks sheet." },
-        { status: 400 },
+        { status: 503 },
       );
     }
 
@@ -149,9 +152,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: true, entries, consolidated });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Request failed";
+    // Reaching here means an unexpected upstream/server failure (Sheets, network,
+    // model transport) — surface it as 5xx, keeping 503 for configuration gaps.
     return NextResponse.json(
       { error: message },
-      { status: /not configured/i.test(message) ? 503 : 400 },
+      { status: /not configured/i.test(message) ? 503 : 500 },
     );
   }
 }

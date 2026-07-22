@@ -27,13 +27,14 @@ export function resumeFromPayload(payload: unknown): string {
   const rows = (payload as Record<string, unknown>)["Master Resume Blocks"];
   if (!Array.isArray(rows)) return "";
   return rows
-    .filter((row): row is Record<string, string> => typeof row === "object" && row !== null)
+    .filter((row): row is Record<string, unknown> => typeof row === "object" && row !== null)
     .filter((row) => {
-      const active = (row.Active ?? "").trim().toLowerCase();
+      // Coerce defensively — a Sheets cell can arrive as a number/boolean, not a string.
+      const active = String(row.Active ?? "").trim().toLowerCase();
       // Treat blank Active as active — an unset flag shouldn't silently drop a block.
       return active === "" || active === "true" || active === "yes" || active === "1";
     })
-    .map((row) => (row["Block Text"] ?? "").trim())
+    .map((row) => String(row["Block Text"] ?? "").trim())
     .filter(Boolean)
     .join("\n\n");
 }

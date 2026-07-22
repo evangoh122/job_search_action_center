@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { getFirebaseAuth } from "@/lib/firebase-client";
 import { FIT_THRESHOLD } from "@/lib/fit";
 
@@ -51,9 +51,20 @@ export default function FitPanel({ resume }: { resume: string }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<FitResponse | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
+
+  // Abort any in-flight scoring request if the panel unmounts, so a late response
+  // can't call setState on a gone component.
+  useEffect(() => () => abortRef.current?.abort(), []);
 
   async function scoreFit() {
     if (!jobDescription.trim()) return;
+    // Supersede any request still in flight (defensive — the button is disabled
+    // while submitting, but this also covers a resolved-then-immediate re-submit).
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+
     setIsSubmitting(true);
     setError(null);
     setResult(null);
@@ -62,6 +73,7 @@ export default function FitPanel({ resume }: { resume: string }) {
       const token = await getFirebaseAuth().currentUser?.getIdToken();
       const res = await fetch("/api/fit", {
         method: "POST",
+        signal: controller.signal,
         headers: {
           authorization: token ? `Bearer ${token}` : "",
           accept: "application/json",
@@ -83,9 +95,13 @@ export default function FitPanel({ resume }: { resume: string }) {
         setResult(data as FitResponse);
       }
     } catch (err) {
+      // A superseded/unmounted request aborts intentionally — don't surface that as an error.
+      if (err instanceof DOMException && err.name === "AbortError") return;
       setError(err instanceof Error ? err.message : "Fit request failed");
     } finally {
-      setIsSubmitting(false);
+      // Only the current request should clear the submitting state; a superseded
+      // one must not flip the UI back while the newer request is still running.
+      if (abortRef.current === controller) setIsSubmitting(false);
     }
   }
 
@@ -127,7 +143,7 @@ export default function FitPanel({ resume }: { resume: string }) {
       )}
 
       {consolidated && (
-        <div className="rating-results">
+        <div className="rating-results" role="status" aria-live="polite">
           <div className="briefing fit-verdict">
             <div className="dial-area">
               <div
@@ -139,9 +155,9 @@ export default function FitPanel({ resume }: { resume: string }) {
             </div>
             <div className="brief-main">
               <p className="gold-label">CONSENSUS VERDICT</p>
-              <h1>
+              <h3>
                 {consolidated.verdict === "apply" ? "Apply — clears the bar" : "Skip — under the bar"}
-              </h1>
+              </h3>
               <div className="meta">
                 <span className={`status-pill ${fitTone(consolidated.fit)}`}>
                   {consolidated.fit}% fit
@@ -160,8 +176,8 @@ export default function FitPanel({ resume }: { resume: string }) {
                 <p className="today-empty">No clear matches surfaced.</p>
               ) : (
                 <ul>
-                  {consolidated.matched.map((item, i) => (
-                    <li key={i}><span className="status-pill tone-green">✓</span> {item}</li>
+                  {consolidated.matched.map((item) => (
+                    <li key={item}><span className="status-pill tone-green">✓</span> {item}</li>
                   ))}
                 </ul>
               )}
@@ -172,8 +188,8 @@ export default function FitPanel({ resume }: { resume: string }) {
                 <p className="today-empty">No blocking gaps surfaced.</p>
               ) : (
                 <ul>
-                  {consolidated.missing.map((item, i) => (
-                    <li key={i}><span className="status-pill tone-yellow">!</span> {item}</li>
+                  {consolidated.missing.map((item) => (
+                    <li key={item}><span className="status-pill tone-yellow">!</span> {item}</li>
                   ))}
                 </ul>
               )}
@@ -182,16 +198,16 @@ export default function FitPanel({ resume }: { resume: string }) {
 
           <h3>Per-model scores</h3>
           <div className="rating-grid">
-            {result.entries.map((entry, idx) => {
+            {result.entries.map((entry) => {
               if ("error" in entry) {
                 return (
-                  <p key={idx} className="today-empty">
+                  <p key={entry.model} className="today-empty">
                     {MODEL_NAMES[entry.model]} couldn&apos;t score this ({entry.error})
                   </p>
                 );
               }
               return (
-                <div className="paper rating-card" key={idx}>
+                <div className="paper rating-card" key={entry.model}>
                   <div className="section-head">
                     <h4>{MODEL_NAMES[entry.model]}</h4>
                     <span className={`status-pill ${fitTone(entry.fit)}`}>{entry.fit}%</span>
@@ -199,8 +215,8 @@ export default function FitPanel({ resume }: { resume: string }) {
                   {entry.summary && <p className="feedback">{entry.summary}</p>}
                   {entry.missing.length > 0 && (
                     <ul className="improvements">
-                      {entry.missing.map((item, i) => (
-                        <li key={i}>{item}</li>
+                      {entry.missing.map((item) => (
+                        <li key={item}>{item}</li>
                       ))}
                     </ul>
                   )}
