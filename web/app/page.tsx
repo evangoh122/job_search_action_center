@@ -367,7 +367,10 @@ export default function Home() {
   const [events, setEvents] = useState<OkrEvent[]>(previewEvents);
   const [gaps, setGaps] = useState<LearningGap[]>(previewGaps);
   const [reviews, setReviews] = useState<WeeklyReview[]>(previewReviews);
-  const [resumeText, setResumeText] = useState<string>(resumeBlocks.join("\n\n"));
+  // Empty until the live master resume loads — never seed with preview blocks, so the
+  // Fit tab can't silently score against placeholder text. When empty, the client omits
+  // `resume` and the /api/fit endpoint loads it straight from the Master Resume Blocks sheet.
+  const [resumeText, setResumeText] = useState<string>("");
   const [tierFilter, setTierFilter] = useState<"all" | "A" | "B">("all");
   const [skipped, setSkipped] = useState<Set<string>>(new Set());
   const [modalStep, setModalStep] = useState<2 | 3>(2);

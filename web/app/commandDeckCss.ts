@@ -49,5 +49,6 @@ export const commandDeckCss = String.raw`
 .fit-lists{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin:18px 0}
 .fit-lists .top-fixes ul{margin:.4rem 0 0;padding:0;list-style:none}
 .fit-lists .top-fixes li{display:flex;align-items:flex-start;gap:8px;margin:.35rem 0;line-height:1.4}
-@media (max-width:640px){.fit-verdict{grid-template-columns:82px minmax(0,1fr)}.fit-lists{grid-template-columns:1fr}}
+@media (max-width:767px){.fit-verdict{grid-template-columns:82px minmax(0,1fr)}}
+@media (max-width:640px){.fit-lists{grid-template-columns:1fr}}
 `;

@@ -102,12 +102,11 @@ export async function POST(request: NextRequest) {
     }
 
     const prompt = fitPrompt(resume, jobDescription);
+    // Derive the fan-out from `models` so order and attribution can't drift apart.
     const models: ModelProvider[] = ["kimi", "deepseek", "mimo"];
-    const results = await Promise.allSettled([
-      askModel("kimi", prompt, { maxTokens: 900 }),
-      askModel("deepseek", prompt, { maxTokens: 900 }),
-      askModel("mimo", prompt, { maxTokens: 900 }),
-    ]);
+    const results = await Promise.allSettled(
+      models.map((model) => askModel(model, prompt, { maxTokens: 900 })),
+    );
 
     const entries: FitEntry[] = [];
     const valid: ParsedFit[] = [];

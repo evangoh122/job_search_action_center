@@ -79,7 +79,9 @@ export default function FitPanel({ resume }: { resume: string }) {
           accept: "application/json",
           "content-type": "application/json",
         },
-        body: JSON.stringify({ jobDescription, resume }),
+        // Omit an empty resume so the server loads the master resume from Sheets
+        // (its source of truth) rather than scoring against nothing.
+        body: JSON.stringify(resume.trim() ? { jobDescription, resume } : { jobDescription }),
       });
 
       const data = (await res.json()) as {
