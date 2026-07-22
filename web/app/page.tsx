@@ -3,6 +3,7 @@
 import { onAuthStateChanged } from "firebase/auth";
 import { useEffect, useRef, useState } from "react";
 import { commandDeckCss } from "./commandDeckCss";
+import InterviewPanel from "./InterviewPanel";
 import { getFirebaseAuth } from "@/lib/firebase-client";
 
 type Job = {
@@ -498,7 +499,7 @@ export default function Home() {
       <aside className="rail">
         <div className="wordmark"><span>J</span><div><b>Job Action Center</b><small>PRIVATE · SHEETS-BACKED</small></div></div>
         <p className="rail-label">CAMPAIGN</p>
-        <nav>{["Apply","Today","Pipeline","Network","Review","Sheet"].map((item,index)=>{const enabled=index>=0&&index<=5;return <button className={activeTab===index?"active":""} disabled={!enabled} title={!enabled?"Coming soon":undefined} onClick={enabled?()=>setActiveTab(index):undefined} key={item}><i>{index===5?"▦":String(index+1).padStart(2,"0")}</i>{item}</button>})}</nav>
+        <nav>{["Apply","Today","Pipeline","Network","Review","Sheet","Interview"].map((item,index)=>{const enabled=index>=0&&index<=6;return <button className={activeTab===index?"active":""} disabled={!enabled} title={!enabled?"Coming soon":undefined} onClick={enabled?()=>setActiveTab(index):undefined} key={item}><i>{index===5?"▦":index===6?"🎙":String(index+1).padStart(2,"0")}</i>{item}</button>})}</nav>
         <div className="week-card"><div><span>Week 1 of 15</span><b>Offer by Nov 1</b></div><div className="segments" aria-label="Week 1 of 15">{Array.from({length:15},(_,i)=><i className={i===0?"filled":""} key={i}/>)}</div><small>Singapore · 15-week campaign</small><p><i/> {sheetLabel}</p></div>
       </aside>
 
@@ -705,8 +706,10 @@ export default function Home() {
             </div>
           );
         })() : null}
+
+        {activeTab === 6 && <InterviewPanel roleContext={jobs.slice(0, 5).map((j) => j.title).join(", ")} />}
       </main>
-      <nav className="bottom-nav">{["Apply","Today","Pipeline","Network","Review","Sheet"].map((item,index)=>{const enabled=index>=0&&index<=5;return <button className={activeTab===index?"active":""} disabled={!enabled} title={!enabled?"Coming soon":undefined} onClick={enabled?()=>setActiveTab(index):undefined} key={item}><span>{String(index+1).padStart(2,"0")}</span>{item}</button>})}</nav>
+      <nav className="bottom-nav">{["Apply","Today","Pipeline","Network","Review","Sheet","Interview"].map((item,index)=>{const enabled=index>=0&&index<=6;return <button className={activeTab===index?"active":""} disabled={!enabled} title={!enabled?"Coming soon":undefined} onClick={enabled?()=>setActiveTab(index):undefined} key={item}><span>{String(index+1).padStart(2,"0")}</span>{item}</button>})}</nav>
     </div>
 
     {modal && (
