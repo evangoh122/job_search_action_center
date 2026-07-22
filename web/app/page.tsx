@@ -5,19 +5,20 @@ import { useEffect, useState } from "react";
 import { commandDeckCss } from "./commandDeckCss";
 import InterviewPanel from "./InterviewPanel";
 import FitPanel from "./FitPanel";
+import OkrPanel, { type OkrEvent } from "./OkrPanel";
 import { resumeFromPayload } from "@/lib/fit";
 import { getFirebaseAuth } from "@/lib/firebase-client";
 
 type SheetJob = Record<string, string>;
-type BootstrapPayload = { Jobs?: SheetJob[] } & Record<string, unknown>;
+type BootstrapPayload = { Jobs?: SheetJob[]; "OKR Events"?: SheetJob[] } & Record<string, unknown>;
 
 // The tracker lives in Google Sheets; all job/application/networking prep happens
 // directly in the embedded sheet (each section is its own worksheet tab).
 const SHEET_URL =
   "https://docs.google.com/spreadsheets/d/14-8e2qfmDfyFkNJqiErgGyq1LujUw1eWoyvKw9Ap8T4/edit";
 
-const TABS = ["Sheet", "Interview", "Fit"] as const;
-const TAB_ICONS = ["▦", "🎙", "◎"];
+const TABS = ["Sheet", "OKRs", "Interview", "Fit"] as const;
+const TAB_ICONS = ["▦", "✓", "🎙", "◎"];
 
 export default function Home() {
   // Default to the Sheet — it's where the campaign is actually run.
@@ -26,6 +27,7 @@ export default function Home() {
   const [sheetState, setSheetState] = useState<"loading" | "live" | "preview">("loading");
   const [jobTitles, setJobTitles] = useState<string[]>([]);
   const [resumeText, setResumeText] = useState<string>("");
+  const [okrEvents, setOkrEvents] = useState<OkrEvent[]>([]);
 
   useEffect(() => {
     // Guards against a stale bootstrap response calling setState after the component has
@@ -53,6 +55,12 @@ export default function Home() {
           // Master resume feeds the Fit scorer; empty when the sheet has none.
           const liveResume = resumeFromPayload(payload);
           if (liveResume) setResumeText(liveResume);
+          // OKR activity events seed the weekly scorecard's week-to-date counts.
+          setOkrEvents(
+            (payload["OKR Events"] || [])
+              .map((row) => ({ date: (row.Date || "").trim(), kind: (row.Kind || "").trim(), count: Number(row.Count) || 0 }))
+              .filter((e) => e.date && e.kind),
+          );
           setSheetState("live");
         })
         .catch((error: unknown) => {
@@ -95,8 +103,9 @@ export default function Home() {
           onLoad={() => setSheetLoaded(true)}
         />
         {activeTab === 0 && !sheetLoaded && <div className="sheet-loading">Loading…</div>}
-        {activeTab === 1 && <InterviewPanel roleContext={roleContext} />}
-        {activeTab === 2 && <FitPanel resume={resumeText} />}
+        {activeTab === 1 && <OkrPanel events={okrEvents} />}
+        {activeTab === 2 && <InterviewPanel roleContext={roleContext} />}
+        {activeTab === 3 && <FitPanel resume={resumeText} />}
       </main>
 
       <nav className="bottom-nav">{TABS.map((item, index) => (
