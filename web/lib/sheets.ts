@@ -37,6 +37,7 @@ const TAB_HEADERS = {
   "Learning Gaps": ["Key", "Found", "Source", "Gap", "Priority", "Review Plan", "Drive State", "Drive Reference", "Resolved"],
   "Weekly Reviews": ["Key", "Week Start", "KR Actuals", "Pipeline", "Follow Ups", "Gaps", "Chats Sourced", "Decision", "Completed"],
   "Master Resume Blocks": ["Key", "Block Text", "Tags", "Source", "Hash", "Active"],
+  "Learning": ["Week Start", "Percent", "Focus", "Notes", "Updated"],
 } as const;
 
 /** Milliseconds to wait for a single outbound fetch before aborting, so a Cloud Run request never hangs indefinitely. */
@@ -436,4 +437,20 @@ export async function saveApplication(env: SheetsEnv, input: any): Promise<void>
 export async function saveWeeklyReview(env: SheetsEnv, input: any): Promise<void> {
   if (!input.weekStart) throw new Error("Week start is required");
   await upsertByKey(env, "Weekly Reviews", input.weekStart, [input.weekStart, input.weekStart, input.krActuals || "", input.pipeline || "", input.followUps || "", input.gaps || "", input.chatsSourced || "", input.decision || "", new Date().toISOString()]);
+}
+
+/**
+ * Records this week's learning-progress percentage in the "Learning" tab, upserting by week start
+ * so re-saving the same week overwrites (one row per week — it resets/repeats weekly).
+ *
+ * @param env - Sheets environment configuration.
+ * @param input - Must include `weekStart` (a Sunday date `YYYY-MM-DD`); `percent` is clamped to 0–100;
+ *   may include `focus` and `notes`.
+ * @throws {Error} If `weekStart` is missing.
+ */
+export async function saveLearning(env: SheetsEnv, input: unknown): Promise<void> {
+  const data = (input ?? {}) as { weekStart?: string; percent?: unknown; focus?: string; notes?: string };
+  if (!data.weekStart) throw new Error("Week start is required");
+  const percent = Math.max(0, Math.min(100, Math.round(Number(data.percent) || 0)));
+  await upsertByKey(env, "Learning", data.weekStart, [data.weekStart, percent, data.focus || "", data.notes || "", new Date().toISOString()]);
 }
