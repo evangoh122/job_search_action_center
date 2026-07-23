@@ -23,11 +23,19 @@ env:
     value: 14-8e2qfmDfyFkNJqiErgGyq1LujUw1eWoyvKw9Ap8T4
     availability:
       - RUNTIME
-  - variable: ALLOWED_EMAIL
-    value: evangohsg@gmail.com
-    availability:
-      - RUNTIME
   - variable: GOOGLE_SERVICE_ACCOUNT_JSON
     secret: google-service-account-json
+    availability:
+      - RUNTIME
+  - variable: KIMI_ANTHROPIC_API_KEY
+    secret: kimi-anthropic-api-key
+    availability:
+      - RUNTIME
+  - variable: DEEPSEEK_ANTHROPIC_API_KEY
+    secret: deepseek-anthropic-api-key
+    availability:
+      - RUNTIME
+  - variable: MIMO_API_KEY
+    secret: mimo-api-key
     availability:
       - RUNTIME
