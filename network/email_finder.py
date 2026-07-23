@@ -16,6 +16,7 @@ _MANAGER_KW = ("manager", "lead", "head", "director", "vp", "chief", "principal"
 
 
 def _classify(position: str, department: str) -> str | None:
+    """Classify a Hunter result as recruiter, hiring manager, or irrelevant."""
     p = (position or "").lower()
     d = (department or "").lower()
     if "hr" in d or "human res" in d or any(k in p for k in _RECRUITER_KW):
@@ -32,10 +33,12 @@ class HunterEmailFinder:
     """
 
     def __init__(self, api_key: str, http_get: HttpGet | None = None):
+        """Configure Hunter authentication and an injectable HTTP client."""
         self.api_key = api_key
         self.http_get = http_get or self._default_get
 
     def _default_get(self, url: str) -> dict:
+        """Fetch and decode a Hunter Domain Search response."""
         r = httpx.get(url, timeout=30)
         r.raise_for_status()
         return r.json()

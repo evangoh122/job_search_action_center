@@ -17,6 +17,7 @@ OUT_PATH = "airtable_export.json"
 
 
 def main() -> None:
+    """Export all configured Airtable tables to a local JSON backup."""
     try:
         from dotenv import load_dotenv
         load_dotenv()

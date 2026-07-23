@@ -15,6 +15,7 @@ from datetime import datetime, timedelta
 import httpx
 
 from models import RawJob
+from salary import extract_salary
 from sources.base import JobSource
 
 logger = logging.getLogger(__name__)
@@ -58,6 +59,7 @@ class LinkedInJobSource(JobSource):
         max_results_per_term: int = 25,
         http_post: HttpPost | None = None,
     ) -> None:
+        """Initialize the instance."""
         self.token = token
         self.search_terms = search_terms
         self.location = location
@@ -66,6 +68,7 @@ class LinkedInJobSource(JobSource):
         self.http_post = http_post or self._default_post
 
     def _default_post(self, url: str, body: dict) -> list:
+        """Default post."""
         r = httpx.post(url, json=body, timeout=180)  # actor run-sync can be slow
         r.raise_for_status()
         resp = r.json()
@@ -75,6 +78,7 @@ class LinkedInJobSource(JobSource):
 
     @staticmethod
     def _items(resp) -> list:
+        """Items."""
         if isinstance(resp, dict):
             return resp.get("items") or resp.get("data") or []
         return resp or []
@@ -93,6 +97,7 @@ class LinkedInJobSource(JobSource):
             return None
 
     def fetch(self) -> list[RawJob]:
+        """Fetch."""
         cutoff_date = (datetime.now() - timedelta(days=self.max_age_days)).date()
         seen_urls: set[str] = set()
         results: list[RawJob] = []
@@ -108,6 +113,15 @@ class LinkedInJobSource(JobSource):
             }
             try:
                 items = self._items(self.http_post(run_url, payload))
+            except httpx.HTTPStatusError as exc:
+                if exc.response.status_code in (401, 403):
+                    logger.error(
+                        "LinkedIn/Apify authorization failed (%s); stopping LinkedIn scan.",
+                        exc.response.status_code,
+                    )
+                    break
+                logger.warning("LinkedIn fetch failed for term '%s'", term, exc_info=True)
+                continue
             except Exception:
                 logger.warning("LinkedIn fetch failed for term '%s'", term, exc_info=True)
                 continue
@@ -130,6 +144,7 @@ class LinkedInJobSource(JobSource):
                         continue
 
                     description = (item.get("descriptionText") or item.get("description") or "").strip()
+                    salary = extract_salary(item)
 
                     seen_urls.add(job_url)
                     results.append(RawJob(
@@ -140,6 +155,10 @@ class LinkedInJobSource(JobSource):
                         posted_at=posted_at,
                         ats_type="linkedin",
                         description=description,
+                        salary_min=salary.minimum,
+                        salary_max=salary.maximum,
+                        salary_currency=salary.currency,
+                        salary_period=salary.period,
                     ))
                 except Exception:
                     logger.warning("Skipping malformed LinkedIn item: %s", item, exc_info=True)

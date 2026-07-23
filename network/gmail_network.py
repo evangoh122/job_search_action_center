@@ -40,6 +40,8 @@ _FREE_PROVIDERS = {
 
 @dataclass
 class NetworkContact:
+    """Represent one human contact discovered in Gmail metadata."""
+
     name: str
     email: str
     company: str = ""
@@ -48,11 +50,13 @@ class NetworkContact:
 
 
 def _is_automated(name: str, email: str) -> bool:
+    """Return whether a sender looks automated rather than human."""
     blob = f"{name} {email}".lower()
     return any(tag in blob for tag in _AUTOMATED)
 
 
 def _company_from_email(email: str) -> str:
+    """Infer a display company from a non-free email domain."""
     domain = email.rsplit("@", 1)[-1].lower()
     if domain in _FREE_PROVIDERS or "." not in domain:
         return ""
@@ -61,6 +65,7 @@ def _company_from_email(email: str) -> str:
 
 
 def _parse_date(raw: str | None) -> str:
+    """Convert an RFC email date to an ISO calendar date."""
     if not raw:
         return ""
     try:
@@ -70,6 +75,8 @@ def _parse_date(raw: str | None) -> str:
 
 
 class GmailNetworkScraper:
+    """Discover and deduplicate human contacts from Gmail message headers."""
+
     def __init__(
         self,
         token: str | None = None,
@@ -78,6 +85,7 @@ class GmailNetworkScraper:
         token_provider: Callable[[], str] | None = None,
         max_messages: int = 2000,
     ) -> None:
+        """Configure Gmail access and the maximum message count."""
         self._cached_token = token
         self._token_provider = token_provider
         self.user_email = user_email.lower()
@@ -95,6 +103,7 @@ class GmailNetworkScraper:
         token_post: TokenPost | None = None,
         max_messages: int = 2000,
     ) -> "GmailNetworkScraper":
+        """Build a scraper backed by a renewable OAuth access token."""
         provider = lambda: refresh_gmail_access_token(  # noqa: E731
             client_id, client_secret, refresh_token, token_post
         )
@@ -102,11 +111,13 @@ class GmailNetworkScraper:
                    max_messages=max_messages)
 
     def _access_token(self) -> str:
+        """Return a cached access token, refreshing it lazily when required."""
         if self._cached_token is None and self._token_provider is not None:
             self._cached_token = self._token_provider()
         return self._cached_token or ""
 
     def _default_http(self, method: str, url: str, body: dict | None) -> dict:
+        """Perform an authenticated Gmail API request."""
         import httpx
 
         resp = httpx.request(
@@ -118,9 +129,11 @@ class GmailNetworkScraper:
         return resp.json()
 
     def _is_me(self, email: str) -> bool:
+        """Return whether an address belongs to the configured applicant."""
         return bool(self.user_email) and email.lower() == self.user_email
 
     def _list_message_ids(self, query: str) -> list[str]:
+        """List bounded Gmail message identifiers matching a search query."""
         ids: list[str] = []
         page_token = ""
         while len(ids) < self.max_messages:
@@ -137,6 +150,7 @@ class GmailNetworkScraper:
         return ids[: self.max_messages]
 
     def _message_headers(self, msg_id: str) -> dict[str, str]:
+        """Fetch the small header subset needed for contact discovery."""
         from urllib.parse import urlencode
 
         params = urlencode([("format", "metadata"), *[("metadataHeaders", h) for h in _HEADERS]])
@@ -146,6 +160,7 @@ class GmailNetworkScraper:
 
     def _merge(self, acc: dict[str, NetworkContact], name: str, email: str,
                date: str, source: str) -> None:
+        """Merge one contact observation by normalized email address."""
         email = email.lower().strip()
         if not email or self._is_me(email) or _is_automated(name, email):
             return
@@ -163,6 +178,7 @@ class GmailNetworkScraper:
             existing.source = source
 
     def scrape(self, query: str = "newer_than:1y -in:chats") -> list[NetworkContact]:
+        """Return recent human correspondents ordered by last contact date."""
         acc: dict[str, NetworkContact] = {}
         for msg_id in self._list_message_ids(query):
             headers = self._message_headers(msg_id)

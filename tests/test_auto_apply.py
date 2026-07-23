@@ -1,82 +1,187 @@
 from __future__ import annotations
 
+import json
+
 import pytest
 
-from apply.auto_apply import AutoApplier
+from apply.auto_apply import AutoApplier, load_approval_keys, load_salary_override_keys
 from models import Applicant, Job
 
 
 @pytest.fixture
-def applicant() -> Applicant:
+def applicant(tmp_path) -> Applicant:
+    """Provide a test helper for applicant."""
+    resume = tmp_path / "resume.pdf"
+    resume.write_bytes(b"resume")
     return Applicant(
         name="Alice Smith",
         email="alice@example.com",
         phone="+11234567890",
         resume_url="https://example.com/alice.pdf",
+        resume_path=str(resume),
         linkedin_url="https://linkedin.com/in/alicesmith",
     )
 
 
 def _job(ats: str, url: str) -> Job:
-    return Job(id="j", source="test", company_canonical="Acme", dedupe_key=f"k-{ats}",
-               title="Engineer", url=url, ats_type=ats)
-
-
-class RecordingHTTP:
-    def __init__(self, response: dict | None = None, exc: Exception | None = None):
-        self.calls: list[tuple[str, str, dict | None]] = []
-        self._response = response if response is not None else {}
-        self._exc = exc
-
-    def __call__(self, method: str, url: str, body: dict | None) -> dict:
-        self.calls.append((method, url, body))
-        if self._exc:
-            raise self._exc
-        return self._response
-
-
-def test_dry_run_default_true_makes_no_call(applicant):
-    http = RecordingHTTP()
-    applier = AutoApplier(applicant=applicant, http=http)
-    assert applier.dry_run is True
-    assert applier.apply(_job("greenhouse", "https://boards.greenhouse.io/acme/jobs/123")) == "dry_run"
-    assert http.calls == []
-
-
-def test_submitted_greenhouse(applicant):
-    http = RecordingHTTP(response={"status": "ok"})
-    res = AutoApplier(applicant=applicant, dry_run=False, http=http).apply(
-        _job("greenhouse", "https://boards.greenhouse.io/acme/jobs/123")
+    """Provide a test helper for job."""
+    return Job(
+        id="j", source="test", company_canonical="Acme",
+        dedupe_key=f"k-{ats}", title="Engineer", url=url, ats_type=ats,
+        salary_min=12000, salary_max=14000, salary_currency="SGD", salary_period="MONTH",
     )
-    assert res == "submitted"
-    method, url, payload = http.calls[0]
-    assert method == "POST"
-    assert payload["email"] == applicant.email
 
 
-def test_submitted_lever(applicant):
-    http = RecordingHTTP(response={"status": "ok"})
-    res = AutoApplier(applicant=applicant, dry_run=False, http=http).apply(
+class RecordingSubmitter:
+    """Group test scenarios for RecordingSubmitter."""
+    def __init__(self, result: str = "submitted", exc: Exception | None = None):
+        """Provide a test helper for init."""
+        self.calls = []
+        self.result = result
+        self.exc = exc
+
+    def __call__(self, job, applicant, plan):
+        """Provide a test helper for call."""
+        self.calls.append((job, applicant, plan))
+        if self.exc:
+            raise self.exc
+        return self.result
+
+
+def test_dry_run_default_prepares_plan_without_submitting(applicant):
+    """Verify the dry run default prepares plan without submitting scenario."""
+    submitter = RecordingSubmitter()
+    applier = AutoApplier(applicant=applicant, submitter=submitter)
+    assert applier.apply(_job("greenhouse", "https://boards.greenhouse.io/acme/jobs/123")) == "dry_run"
+    assert applier.last_plan is not None
+    assert applier.last_plan.form_url.endswith("#app")
+    assert "cover_letter" in applier.last_plan.fields
+    assert "Engineer" in applier.last_plan.fields["cover_letter"]
+    assert applier.last_draft is not None
+    assert submitter.calls == []
+
+
+def test_legacy_live_submission_requires_review_engine(applicant):
+    """Legacy callers cannot bypass immutable package review."""
+    submitter = RecordingSubmitter()
+    result = AutoApplier(applicant, dry_run=False, submitter=submitter).apply(
         _job("lever", "https://jobs.lever.co/globex/456")
     )
-    assert res == "submitted"
-    _, _, payload = http.calls[0]
-    assert payload["name"] == applicant.name
-    assert isinstance(payload["urls"], list)
+    assert result == "review_engine_required"
+    assert submitter.calls == []
+
+
+def test_legacy_job_key_approval_cannot_use_browser_submitter(applicant):
+    """Reusable job-key approvals are inert and never launch a browser."""
+    submitter = RecordingSubmitter()
+    result = AutoApplier(
+        applicant, dry_run=False, submitter=submitter, approved_job_keys={"k-lever"}
+    ).apply(_job("lever", "https://jobs.lever.co/globex/456"))
+    assert result == "review_engine_required"
+    assert submitter.calls == []
+    assert AutoApplier(applicant, approved_job_keys={"k-lever"}).is_approved(
+        _job("lever", "https://jobs.lever.co/globex/456")
+    )
+
+
+def test_every_prepared_application_persists_cover_letter_package(applicant):
+    """Verify the every prepared application persists cover letter package scenario."""
+    saved = []
+    applier = AutoApplier(applicant, draft_sink=lambda draft: saved.append(draft) or "draft-1")
+    assert applier.apply(_job("greenhouse", "https://boards.greenhouse.io/acme/jobs/123")) == "dry_run"
+    assert len(saved) == 1
+    assert saved[0].cover_letter
+    assert saved[0].job_id == "j"
+
+
+def test_supported_hosted_boards_use_review_flow(applicant):
+    """Verify the supported hosted boards use review flow scenario."""
+    for ats in ("workday", "linkedin", "mycareersfuture", "efinancialcareers"):
+        job = _job(ats, f"https://example.com/{ats}")
+        result = AutoApplier(
+            applicant, dry_run=False, approved_job_keys={job.id}
+        ).apply(job)
+        assert result == "review_engine_required"
 
 
 def test_unsupported_ats(applicant):
-    http = RecordingHTTP()
-    res = AutoApplier(applicant=applicant, dry_run=False, http=http).apply(
-        _job("mycareersfuture", "https://x/1")
-    )
-    assert res == "unsupported"
-    assert http.calls == []
+    """Verify the unsupported ats scenario."""
+    assert AutoApplier(applicant, dry_run=False).apply(
+        _job("unknown", "https://x/1")
+    ) == "unsupported"
 
 
-def test_live_submit_error(applicant):
-    http = RecordingHTTP(exc=ConnectionError("timeout"))
-    res = AutoApplier(applicant=applicant, dry_run=False, http=http).apply(
+def test_incomplete_profile_refuses_live_or_dry_run():
+    """Verify the incomplete profile refuses live or dry run scenario."""
+    applicant = Applicant(name="Alice", email="")
+    assert AutoApplier(applicant).apply(
         _job("greenhouse", "https://boards.greenhouse.io/acme/jobs/123")
+    ) == "incomplete"
+
+
+def test_submitter_error_is_isolated(applicant):
+    """Verify the submitter error is isolated scenario."""
+    submitter = RecordingSubmitter(exc=ConnectionError("timeout"))
+    result = AutoApplier(
+        applicant, dry_run=False, submitter=submitter, approved_job_keys={"j"}
+    ).apply(_job("greenhouse", "https://boards.greenhouse.io/acme/jobs/123"))
+    assert result == "review_engine_required"
+
+
+def test_live_submission_requires_existing_local_resume(applicant):
+    """Verify the live submission requires existing local resume scenario."""
+    applicant.resume_path = "missing-resume.pdf"
+    submitter = RecordingSubmitter()
+    result = AutoApplier(
+        applicant, dry_run=False, submitter=submitter, approved_job_keys={"j"}
+    ).apply(_job("greenhouse", "https://boards.greenhouse.io/acme/jobs/123"))
+    assert result == "review_engine_required"
+    assert submitter.calls == []
+
+
+def test_unknown_salary_requires_separate_recorded_override(applicant):
+    """Verify the unknown salary requires separate recorded override scenario."""
+    job = _job("greenhouse", "https://boards.greenhouse.io/acme/jobs/123")
+    job.salary_min = job.salary_max = None
+    submitter = RecordingSubmitter()
+    blocked = AutoApplier(
+        applicant, dry_run=False, submitter=submitter, approved_job_keys={job.id}
     )
-    assert res == "error"
+    assert blocked.apply(job) == "review_engine_required"
+    allowed = AutoApplier(
+        applicant,
+        dry_run=False,
+        submitter=submitter,
+        approved_job_keys={job.id},
+        salary_override_job_keys={job.id},
+    )
+    assert allowed.apply(job) == "review_engine_required"
+    assert submitter.calls == []
+
+
+def test_custom_answers_cannot_override_verified_identity(applicant):
+    """Verify the custom answers cannot override verified identity scenario."""
+    applicant.answers = {"email": "attacker@example.com", "phone": "000", "Why us?": "Fit"}
+    applier = AutoApplier(applicant)
+    assert applier.apply(_job("greenhouse", "https://boards.greenhouse.io/acme/jobs/123")) == "dry_run"
+    assert applier.last_plan.fields["email"] == applicant.email
+    assert applier.last_plan.fields["phone"] == applicant.phone
+    assert applier.last_plan.fields["Why us?"] == "Fit"
+
+
+def test_load_approval_keys_accepts_object_or_list(tmp_path):
+    """Verify the load approval keys accepts object or list scenario."""
+    path = tmp_path / "approvals.json"
+    path.write_text(json.dumps({"approved": ["job-1", "key-2"]}), encoding="utf-8")
+    assert load_approval_keys(path) == {"job-1", "key-2"}
+    path.write_text(json.dumps(["job-3"]), encoding="utf-8")
+    assert load_approval_keys(path) == {"job-3"}
+
+
+def test_load_salary_overrides_only_from_named_field(tmp_path):
+    """Verify the load salary overrides only from named field scenario."""
+    path = tmp_path / "approvals.json"
+    path.write_text(json.dumps({
+        "approved": ["job-1"], "salary_overrides": ["job-2"]
+    }), encoding="utf-8")
+    assert load_salary_override_keys(path) == {"job-2"}

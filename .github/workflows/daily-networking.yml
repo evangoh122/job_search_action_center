@@ -1,0 +1,33 @@
+name: Daily networking draft review
+
+on:
+  schedule:
+    - cron: "30 0 * * 1-5" # 08:30 SGT on weekdays
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  drafts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: python -m pip install -e ".[dev]"
+      - run: python -m pytest -q tests/test_networking_templates.py
+      - name: Generate personalized review packet (never sends)
+        env:
+          NETWORKING_TARGETS_JSON: ${{ secrets.NETWORKING_TARGETS_JSON }}
+          APPLICANT_NAME: ${{ secrets.APPLICANT_NAME }}
+        run: python -m networking_cli --targets "$NETWORKING_TARGETS_JSON"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: daily-networking-drafts
+          path: data/daily_networking_drafts.md
+          if-no-files-found: error
+          retention-days: 14

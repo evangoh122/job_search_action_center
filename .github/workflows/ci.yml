@@ -1,0 +1,96 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Python ${{ matrix.python-version }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install poppler-utils (pdftoppm for résumé visual QA)
+        run: sudo apt-get update && sudo apt-get install -y poppler-utils
+
+      - name: Verify poppler install
+        run: pdftoppm -v
+
+      - name: Install test dependencies
+        run: python -m pip install -e ".[dev]"
+
+      - name: Verify dependency consistency
+        run: python -m pip check
+
+      - name: Compile Python modules
+        run: python -m compileall -q apply network sources store tests *.py
+
+      - name: Run tests
+        run: python -m pytest -q
+
+  package:
+    name: Build package
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Build wheel and source distribution
+        run: |
+          python -m pip install build
+          python -m build
+
+      - name: Verify wheel in a clean environment
+        run: |
+          python -m venv /tmp/package-check
+          /tmp/package-check/bin/python -m pip install dist/*.whl
+          cd /tmp
+          /tmp/package-check/bin/python -c "import application_cli, job_compare, matching, runner"
+          /tmp/package-check/bin/job-apply --help
+
+      - name: Upload package artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-package
+          path: dist/
+          if-no-files-found: error
+          retention-days: 7
+
+  dependency-review:
+    name: Dependency review
+    # Private repositories require GitHub Advanced Security for this action.
+    # Set the repository variable DEPENDENCY_REVIEW_ENABLED=true after enabling it.
+    if: >-
+      github.event_name == 'pull_request' &&
+      (github.event.repository.private == false || vars.DEPENDENCY_REVIEW_ENABLED == 'true')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/dependency-review-action@v4

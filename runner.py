@@ -11,14 +11,17 @@ import uuid
 from datetime import datetime, timedelta
 
 from apply.draft import ApplicationDraftQueue
+from apply.resume_models import ResumeAchievement
 from apply.tailor import tailor
-from config import DAILY_CAPS
+from config import DAILY_CAPS, MINIMUM_MONTHLY_SGD
 from exclusions import is_excluded_company
 from models import Job, RawJob
-from network.email_finder import HunterEmailFinder
+from matching import find_duplicate_job, job_identity_key, merge_jobs
 from network.outreach import build_drafts
 from routing import apply_tier, should_outreach
+from salary import SalaryRange, is_below_monthly_sgd_floor
 from scoring import final_score
+from sources.efinancialcareers import EFinancialCareersSource
 from sources.mycareersfuture import MyCareersFutureSource
 from sources.linkedin import LinkedInJobSource
 from store.repository import Repository, SqliteRepository
@@ -41,12 +44,21 @@ DEFAULT_TERMS = [
     "director ai",
     "data analyst",
     "data scientist",
+    "solutions architect ai",
+    "cloud data architect",
+    "principal data scientist",
+    "staff data scientist",
+    "ai platform lead",
+    "product analytics lead",
+    "customer engineer data ai",
+    "technical account manager ai",
 ]
 
 
 def sources(apify_token: str = "", include_greenhouse: bool = True) -> list[RawJob]:
     """Live job sources: MyCareersFuture (SG) + LinkedIn (when APIFY_TOKEN is set)
-    + Greenhouse (large-fintech boards). Each source is best-effort and isolated."""
+    + Greenhouse (large-fintech boards) + eFinancialCareers. Each source is
+    best-effort and isolated."""
     import os
 
     jobs = MyCareersFutureSource(DEFAULT_TERMS, max_age_days=1).fetch()
@@ -69,10 +81,21 @@ def sources(apify_token: str = "", include_greenhouse: bool = True) -> list[RawJ
         except Exception:
             logger.warning("Greenhouse source failed — continuing without it", exc_info=True)
     try:
+        efc_loc = os.environ.get("EFINANCIALCAREERS_LOCATION", "Singapore")
+        efc_jobs = EFinancialCareersSource(
+            DEFAULT_TERMS,
+            location=efc_loc,
+            max_age_days=int(os.environ.get("EFINANCIALCAREERS_MAX_AGE_DAYS", "7")),
+        ).fetch()
+        jobs.extend(efc_jobs)
+        logger.info("eFinancialCareers source added %d jobs", len(efc_jobs))
+    except Exception:
+        logger.warning("eFinancialCareers source failed - continuing without it", exc_info=True)
+    try:
         from sources.workday import WorkdaySource
 
-        # Target banks on Workday (Citi, Deutsche Bank, Morgan Stanley, ...).
-        wd_loc = os.environ.get("WORKDAY_LOCATION", "Singapore") or None
+        # Workday financial-employer discovery is deliberately Singapore-only.
+        wd_loc = _workday_location()
         wd_jobs = WorkdaySource(location_contains=wd_loc).fetch()
         jobs.extend(wd_jobs)
         logger.info("Workday source added %d jobs", len(wd_jobs))
@@ -81,11 +104,25 @@ def sources(apify_token: str = "", include_greenhouse: bool = True) -> list[RawJ
     return jobs
 
 
+def _workday_location() -> str:
+    """Return the mandatory Singapore location filter for Workday bank searches."""
+    import os
+
+    configured = os.environ.get("WORKDAY_LOCATION", "Singapore").strip()
+    if configured.casefold() != "singapore":
+        logger.warning(
+            "Ignoring WORKDAY_LOCATION=%r; bank Workday discovery is Singapore-only",
+            configured,
+        )
+    return "Singapore"
+
+
 def normalize(raw: RawJob) -> Job:
+    """Normalize."""
     company = raw.company.strip()
     title = raw.title.strip()
     url = raw.url.strip()
-    dedupe_key = f"{company.lower()}|{title.lower()}|{url}"
+    dedupe_key = job_identity_key(company, title, url=url)
     return Job(
         id=str(uuid.uuid4()),
         source=raw.source,
@@ -96,10 +133,19 @@ def normalize(raw: RawJob) -> Job:
         ats_type=raw.ats_type,
         posted_at=raw.posted_at,
         description=raw.description,
+        sources=[raw.source],
+        source_urls={raw.source: url},
+        salary_min=raw.salary_min,
+        salary_max=raw.salary_max,
+        salary_average=(raw.salary_min + raw.salary_max) / 2
+        if raw.salary_min is not None and raw.salary_max is not None else None,
+        salary_currency=raw.salary_currency,
+        salary_period=raw.salary_period,
     )
 
 
 def _within_24h(raw: RawJob) -> bool:
+    """Within 24h."""
     return raw.posted_at is not None and raw.posted_at >= datetime.now() - timedelta(days=1)
 
 
@@ -161,19 +207,29 @@ def _run_apply_a(job, repo, auto_applier, day) -> str:
         logger.warning("Daily auto-apply cap reached (%s)", DAILY_CAPS["auto_apply"])
         return "capped"
     result = auto_applier.apply(job)
-    if result in ("submitted", "dry_run"):
+    if result in ("submitted", "submission_unknown", "dry_run"):
         repo.incr_action("auto_apply", day)
     return result
 
 
-def _run_apply_b(job, repo, apply_queue, base_summary, applicant_name, day) -> int:
+def _run_apply_b(
+    job,
+    repo,
+    apply_queue,
+    base_summary,
+    applicant_name,
+    day,
+    tracker=None,
+    achievements: list[ResumeAchievement] | None = None,
+) -> int:
     """Track 1, Tier B: tailor a cover letter and queue it for review (daily drafts cap)."""
     if apply_queue is None:
         return 0
     if repo.count_actions("drafts", day) >= DAILY_CAPS["drafts"]:
         logger.warning("Daily application-draft cap reached (%s)", DAILY_CAPS["drafts"])
         return 0
-    apply_queue.add(tailor(job, base_summary, applicant_name))
+    draft = tailor(job, base_summary, applicant_name, achievements=achievements)
+    apply_queue.add(draft)
     repo.incr_action("drafts", day)
     return 1
 
@@ -192,13 +248,18 @@ def run(
     applicant_name: str = "",
     base_summary: str = "",
     apify_token: str = "",
+    achievements: list[ResumeAchievement] | None = None,
 ) -> dict[str, int]:
+    """Run."""
     repo = repo or SqliteRepository()
     raws = jobs if jobs is not None else sources(apify_token)
     day = datetime.now().date().isoformat()
-    counts = {"processed": 0, "stored": 0, "excluded": 0, "skipped": 0,
+    counts = {"processed": 0, "stored": 0, "duplicates": 0,
+              "excluded": 0, "skipped": 0,
+              "salary_filtered": 0,
               "qualified": 0, "tier_a": 0, "app_drafts": 0, "emails": 0, "posters": 0}
     new_jobs: list[Job] = []  # roles newly added to the tracker this run (for notifications)
+    seen_this_run: set[str] = set()
     for raw in raws:
         counts["processed"] += 1
         if not (raw.company or "").strip():
@@ -209,8 +270,31 @@ def run(
             counts["excluded"] += 1
             continue
         job = normalize(raw)
+        salary = SalaryRange(
+            minimum=job.salary_min,
+            maximum=job.salary_max,
+            currency=job.salary_currency,
+            period=job.salary_period,
+        )
+        if is_below_monthly_sgd_floor(salary, MINIMUM_MONTHLY_SGD):
+            counts["salary_filtered"] += 1
+            logger.info(
+                "Salary floor filtered '%s' at %s (maximum %s %s)",
+                job.title,
+                job.company_canonical,
+                job.salary_max,
+                job.salary_period,
+            )
+            continue
         job.score = final_score(job, within_24h=_within_24h(raw))
         job.tier = apply_tier(job)
+        existing = repo.get_job_by_dedupe_key(job.dedupe_key)
+        if existing is None:
+            existing = find_duplicate_job(job, repo.list_jobs())
+        if existing is not None:
+            job = merge_jobs(existing, job)
+            job.dedupe_key = existing.dedupe_key
+            counts["duplicates"] += 1
         repo.upsert_job(job)
         counts["stored"] += 1
         job_rec_id = None
@@ -224,18 +308,61 @@ def run(
                 logger.warning("Sheets upsert failed for %s", job.title, exc_info=True)
 
         # Track 1 — apply
-        if job.tier == "A":
+        duplicate_in_run = job.dedupe_key in seen_this_run
+        seen_this_run.add(job.dedupe_key)
+        # Discovery is draft-only. Browser actions are reachable solely through the
+        # exact-package commands in application_cli.py.
+        approved_live = False
+        status = job.status.casefold()
+        terminal_status = status in {
+            "submission_unknown", "submitted", "applied", "interviewing", "offer",
+            "rejected", "closed",
+        }
+        pending_status = status in {"queued", "drafted", "approved"}
+        application_already_handled = terminal_status or (pending_status and not approved_live)
+
+        if not duplicate_in_run and not application_already_handled and job.tier == "A":
             counts["tier_a"] += 1
             result = _run_apply_a(job, repo, auto_applier, day)
+            if result == "submitted":
+                job.status = "applied"
+            elif result == "submission_unknown":
+                job.status = "submission_unknown"
             # Top-priority bank role on a non-submittable ATS (LinkedIn/MCF): still draft it.
-            if result in ("unsupported", "disabled"):
-                counts["app_drafts"] += _run_apply_b(
-                    job, repo, apply_queue, base_summary, applicant_name, day
-                )
-        elif job.tier == "B":
-            counts["app_drafts"] += _run_apply_b(
-                job, repo, apply_queue, base_summary, applicant_name, day
-            )
+            if result in {
+                "unsupported", "disabled", "incomplete", "approval_required",
+                "review_required", "captcha_required", "salary_review_required", "error",
+                "review_engine_required",
+            }:
+                drafted = 0
+                if status == "new":
+                    drafted = _run_apply_b(
+                        job, repo, apply_queue, base_summary, applicant_name, day, tracker, achievements
+                    )
+                counts["app_drafts"] += drafted
+                if drafted:
+                    job.status = "drafted"
+            repo.upsert_job(job)
+        elif not duplicate_in_run and not application_already_handled and job.tier == "B":
+            # Tier B remains draft-only unless this exact job has explicit approval and
+            # live mode is enabled. Approval never broadens to another vacancy.
+            result = _run_apply_a(job, repo, auto_applier, day) if approved_live else "draft"
+            if result == "submitted":
+                job.status = "applied"
+                repo.upsert_job(job)
+            elif result == "submission_unknown":
+                job.status = "submission_unknown"
+                repo.upsert_job(job)
+            else:
+                drafted = 0
+                if status == "new":
+                    drafted = _run_apply_b(
+                        job, repo, apply_queue, base_summary, applicant_name, day, tracker, achievements
+                    )
+                counts["app_drafts"] += drafted
+                if drafted:
+                    job.status = "drafted"
+                    repo.upsert_job(job)
 
         # Track 2 — outreach (parallel)
         if should_outreach(job):
@@ -280,7 +407,7 @@ def _build_drafter_from_env():
     token (GMAIL_TOKEN), else the local review-queue JSONL fallback."""
     import os
 
-    from network.gmail_drafter import GmailDrafter, ReviewQueueDrafter
+    from network.gmail_drafter import FallbackDrafter, GmailDrafter, ReviewQueueDrafter
 
     sender = os.environ.get("APPLICANT_EMAIL", "me") or "me"
     client_id = os.environ.get("GMAIL_CLIENT_ID")
@@ -288,13 +415,19 @@ def _build_drafter_from_env():
     refresh_token = os.environ.get("GMAIL_REFRESH_TOKEN")
     if client_id and client_secret and refresh_token:
         logger.info("Gmail drafter: OAuth2 refresh-token flow.")
-        return GmailDrafter.from_refresh_token(
-            client_id, client_secret, refresh_token, sender=sender
+        return FallbackDrafter(
+            GmailDrafter.from_refresh_token(
+                client_id, client_secret, refresh_token, sender=sender
+            ),
+            ReviewQueueDrafter(),
         )
     gmail_token = os.environ.get("GMAIL_TOKEN")
     if gmail_token:
         logger.info("Gmail drafter: static bearer token.")
-        return GmailDrafter(gmail_token, sender=sender)
+        return FallbackDrafter(
+            GmailDrafter(gmail_token, sender=sender),
+            ReviewQueueDrafter(),
+        )
     logger.info("Gmail not configured — using local review-queue JSONL fallback.")
     return ReviewQueueDrafter()
 
@@ -356,7 +489,82 @@ def _build_outreach_from_env():
     return finder, drafter
 
 
+def _load_resume_achievements_from_env() -> list[ResumeAchievement]:
+    """Load the private evidence bank when configured; never block the job pipeline if absent."""
+    import os
+    from pathlib import Path
+
+    from apply.resume_bank import load_achievements
+
+    path = Path(os.environ.get("RESUME_ACHIEVEMENTS_PATH", "data/resume_achievements.json"))
+    if not path.exists():
+        logger.info("Resume achievement bank not found at %s; drafts will omit tailored evidence", path)
+        return []
+    try:
+        return load_achievements(path)
+    except (OSError, ValueError, TypeError):
+        logger.warning("Resume achievement bank is invalid at %s; tailored evidence disabled", path)
+        return []
+
+
+def _build_auto_applier_from_env(achievements: list[ResumeAchievement] | None = None):
+    """Build the drafting applier; live browser actions require review-engine packages."""
+    import json
+    import os
+    from pathlib import Path
+
+    from apply.auto_apply import AutoApplier
+    from models import Applicant
+
+    answers_raw = os.environ.get("APPLICATION_ANSWERS_JSON", "")
+    answers: dict[str, str] = {}
+    if answers_raw:
+        try:
+            answers = (
+                json.loads(Path(answers_raw).read_text(encoding="utf-8"))
+                if os.path.exists(answers_raw)
+                else json.loads(answers_raw)
+            )
+        except (OSError, ValueError, TypeError):
+            logger.warning("APPLICATION_ANSWERS_JSON is invalid; custom answers disabled.")
+
+    applicant = Applicant(
+        name=os.environ.get("APPLICANT_NAME", ""),
+        email=os.environ.get("APPLICANT_EMAIL", ""),
+        resume_url=os.environ.get("RESUME_URL", ""),
+        resume_path=os.environ.get("RESUME_PATH", ""),
+        phone=os.environ.get("APPLICANT_PHONE", ""),
+        linkedin_url=os.environ.get("APPLICANT_LINKEDIN", ""),
+        github_url=os.environ.get("APPLICANT_GITHUB", ""),
+        location=os.environ.get("APPLICANT_LOCATION", "Singapore"),
+        current_company=os.environ.get("APPLICANT_CURRENT_COMPANY", ""),
+        work_authorization=os.environ.get("APPLICANT_WORK_AUTHORIZATION", ""),
+        sponsorship_required=os.environ.get("APPLICANT_SPONSORSHIP_REQUIRED", ""),
+        notice_period=os.environ.get("APPLICANT_NOTICE_PERIOD", ""),
+        salary_expectation=os.environ.get("APPLICANT_SALARY_EXPECTATION", ""),
+        answers=answers,
+    )
+    if os.environ.get("AUTO_APPLY_LIVE", "").lower() == "true":
+        logger.warning(
+            "AUTO_APPLY_LIVE is ignored: use application_cli.py prepare/review/approve/open "
+            "so approval is bound to an immutable package."
+        )
+    return AutoApplier(
+        applicant,
+        dry_run=True,
+        submitter=None,
+        approved_job_keys=set(),
+        salary_override_job_keys=set(),
+        base_summary=os.environ.get("RESUME_SUMMARY", ""),
+        draft_sink=ApplicationDraftQueue(
+            os.environ.get("APPLICATION_DRAFTS_PATH", "data/application_drafts.jsonl")
+        ).add,
+        achievements=achievements or [],
+    )
+
+
 def main() -> None:
+    """Run the command-line entry point."""
     logging.basicConfig(level=logging.INFO)
     import os
 
@@ -368,18 +576,8 @@ def main() -> None:
 
     finder, drafter = _build_outreach_from_env()
 
-    # Tier A auto-apply: DRY_RUN unless AUTO_APPLY_LIVE=true is explicitly set.
-    from apply.auto_apply import AutoApplier
-    from models import Applicant
-
-    applicant = Applicant(
-        name=os.environ.get("APPLICANT_NAME", ""),
-        email=os.environ.get("APPLICANT_EMAIL", ""),
-        resume_url=os.environ.get("RESUME_URL", ""),
-        linkedin_url=os.environ.get("APPLICANT_LINKEDIN", ""),
-    )
-    dry_run = os.environ.get("AUTO_APPLY_LIVE", "").lower() != "true"
-    auto_applier = AutoApplier(applicant, dry_run=dry_run)
+    achievements = _load_resume_achievements_from_env()
+    auto_applier = _build_auto_applier_from_env(achievements)
 
     # LinkedIn job-poster discovery (Phase 8) — enabled only if APIFY_TOKEN is set.
     poster_finder = None
@@ -413,6 +611,7 @@ def main() -> None:
         applicant_name=os.environ.get("APPLICANT_NAME", ""),
         base_summary=os.environ.get("RESUME_SUMMARY", ""),
         apify_token=apify or "",
+        achievements=achievements,
     )
     from report import build_report
 

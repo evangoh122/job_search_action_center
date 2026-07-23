@@ -1,0 +1,100 @@
+name: Prepare application package
+
+# Review-first flow only. This workflow builds and deterministically reviews
+# one exact, immutable application package (`application_cli prepare`),
+# archives the résumé to Google Drive, and syncs the package to the
+# authoritative Google Sheets row. It stops there.
+#
+# Inspecting the printed review findings, approving the package, autofilling
+# the browser, and clicking the employer's final Submit button remain manual,
+# local-only steps the applicant runs themselves on this same machine
+# (`application_cli show|approve|open|record-submitted|record-unknown`).
+# This workflow never runs those commands and never opens a browser.
+
+on:
+  workflow_dispatch:
+    inputs:
+      job_key:
+        description: Exact job id or dedupe key from `python -m application_cli eligible`
+        required: true
+        type: string
+      resume_path:
+        description: Path on this runner to the exact, visually-QA'd, two-page final résumé PDF
+        required: true
+        type: string
+      salary_reviewed:
+        description: Confirm you reviewed this vacancy despite unknown/unparseable salary
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: prepare-application-package
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    # Requires the self-hosted runner: the exact final résumé PDF and the
+    # visual-QA receipt bound to it live only on the applicant's own machine
+    # and are never committed to the repository.
+    runs-on: [self-hosted, Windows, job-apply]
+    environment: job-applications
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install and test
+        shell: powershell
+        run: |
+          python -m pip install -e ".[dev]"
+          python -m pytest -q
+
+      - name: Prepare and deterministically review the exact package
+        shell: powershell
+        env:
+          JOB_KEY: ${{ inputs.job_key }}
+          RESUME_PATH: ${{ inputs.resume_path }}
+          JOBS_DB_PATH: ${{ vars.JOBS_DB_PATH }}
+          APPLICANT_NAME: ${{ secrets.APPLICANT_NAME }}
+          APPLICANT_EMAIL: ${{ secrets.APPLICANT_EMAIL }}
+          APPLICANT_PHONE: ${{ secrets.APPLICANT_PHONE }}
+          APPLICANT_LOCATION: ${{ secrets.APPLICANT_LOCATION }}
+          APPLICANT_LINKEDIN: ${{ secrets.APPLICANT_LINKEDIN }}
+          APPLICANT_GITHUB: ${{ secrets.APPLICANT_GITHUB }}
+          APPLICANT_CURRENT_COMPANY: ${{ secrets.APPLICANT_CURRENT_COMPANY }}
+          APPLICANT_WORK_AUTHORIZATION: ${{ secrets.APPLICANT_WORK_AUTHORIZATION }}
+          APPLICANT_SPONSORSHIP_REQUIRED: ${{ secrets.APPLICANT_SPONSORSHIP_REQUIRED }}
+          APPLICANT_NOTICE_PERIOD: ${{ secrets.APPLICANT_NOTICE_PERIOD }}
+          APPLICANT_SALARY_EXPECTATION: ${{ secrets.APPLICANT_SALARY_EXPECTATION }}
+          APPLICATION_ANSWERS_JSON: ${{ secrets.APPLICATION_ANSWERS_JSON }}
+          RESUME_URL: ${{ secrets.RESUME_URL }}
+          RESUME_SUMMARY: ${{ secrets.RESUME_SUMMARY }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
+          APPLICATION_RESUME_DRIVE_FOLDER_ID: ${{ vars.APPLICATION_RESUME_DRIVE_FOLDER_ID }}
+          GOOGLE_DRIVE_CLIENT_ID: ${{ secrets.GOOGLE_DRIVE_CLIENT_ID }}
+          GOOGLE_DRIVE_CLIENT_SECRET: ${{ secrets.GOOGLE_DRIVE_CLIENT_SECRET }}
+          GOOGLE_DRIVE_REFRESH_TOKEN: ${{ secrets.GOOGLE_DRIVE_REFRESH_TOKEN }}
+        run: |
+          $extraArgs = @()
+          if ("${{ inputs.salary_reviewed }}" -eq "true") { $extraArgs += "--salary-reviewed" }
+          python -m application_cli prepare "$env:JOB_KEY" --resume "$env:RESUME_PATH" @extraArgs
+
+      - name: Remaining steps are manual and local only
+        if: always()
+        shell: powershell
+        run: |
+          Write-Host "This workflow only prepares and reviews the package above; it never approves,"
+          Write-Host "opens a browser, or submits anything. Continue locally on this machine with:"
+          Write-Host "  python application_cli.py show <package-id>"
+          Write-Host "  python application_cli.py approve <package-id>"
+          Write-Host "  python application_cli.py open <package-id>"
+          Write-Host "  python application_cli.py record-submitted <package-id>"

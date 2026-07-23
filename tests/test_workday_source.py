@@ -1,6 +1,9 @@
 from __future__ import annotations
 
-from sources.workday import WorkdaySource
+import pytest
+
+from runner import _workday_location
+from sources.workday import DEFAULT_BANK_TENANTS, WorkdaySource
 
 
 def _fake():
@@ -17,15 +20,18 @@ def _fake():
     }
 
     def post(url: str, body: dict) -> dict:
+        """Provide a test helper for post."""
         return posts if body.get("searchText") == "data" else {"jobPostings": []}
 
     def get(url: str) -> dict:
+        """Provide a test helper for get."""
         return {"jobPostingInfo": {"jobDescription": "Lead <b>ML</b> &amp; analytics"}}
 
     return post, get
 
 
 def _src(**kw):
+    """Provide a test helper for src."""
     post, get = _fake()
     return WorkdaySource(
         tenants=[{"company": "Citi", "host": "citi.wd5.myworkdayjobs.com",
@@ -35,18 +41,21 @@ def _src(**kw):
 
 
 def test_filters_by_title_keyword():
+    """Verify filtering by title keyword."""
     titles = {j.title for j in _src().fetch()}
     assert "VP, Data Science" in titles
     assert "Office Manager" not in titles  # no data/AI keyword
 
 
 def test_location_filter():
+    """Verify the location filter scenario."""
     titles = {j.title for j in _src(location_contains="Singapore").fetch()}
     assert "Data Engineer" not in titles  # London filtered out
     assert "VP, Data Science" in titles
 
 
 def test_maps_fields_url_and_description():
+    """Verify mapping fields url and description."""
     job = next(j for j in _src().fetch() if j.title == "VP, Data Science")
     assert job.source == "workday"
     assert job.company == "Citi"
@@ -57,9 +66,11 @@ def test_maps_fields_url_and_description():
 
 
 def test_enrich_off_skips_detail_call():
+    """Verify the enrich off skips detail call scenario."""
     post, _ = _fake()
     calls = []
     def get(url):  # should never be called when enrich=False
+        """Provide a test helper for get."""
         calls.append(url); return {}
     src = WorkdaySource(tenants=[{"company": "Citi", "host": "h", "tenant": "t", "site": "s"}],
                         search_terms=["data"], http_post=post, http_get=get, enrich=False)
@@ -69,8 +80,31 @@ def test_enrich_off_skips_detail_call():
 
 
 def test_failed_tenant_is_skipped():
+    """Verify the failed tenant is skipped scenario."""
     def boom(url, body):
+        """Provide a test helper for boom."""
         raise RuntimeError("422")
     src = WorkdaySource(tenants=[{"company": "X", "host": "h", "tenant": "t", "site": "s"}],
                         search_terms=["data"], http_post=boom, http_get=lambda u: {})
     assert src.fetch() == []
+
+
+def test_default_tenants_cover_verified_singapore_workday_financial_employers():
+    """Verify the default tenants cover verified singapore workday financial employers scenario."""
+    expected = {
+        "Citi", "Deutsche Bank", "Morgan Stanley", "DBS", "UOB", "MUFG",
+        "Mizuho", "Wells Fargo", "State Street", "Northern Trust", "BlackRock",
+    }
+    companies = {tenant["company"] for tenant in DEFAULT_BANK_TENANTS}
+    assert companies == expected
+    assert len({tenant["host"] for tenant in DEFAULT_BANK_TENANTS}) == len(expected)
+
+
+@pytest.mark.parametrize("configured", [None, "", "London", "Singapore"])
+def test_runner_enforces_singapore_workday_location(monkeypatch, configured):
+    """Verify the runner enforces singapore workday location scenario."""
+    if configured is None:
+        monkeypatch.delenv("WORKDAY_LOCATION", raising=False)
+    else:
+        monkeypatch.setenv("WORKDAY_LOCATION", configured)
+    assert _workday_location() == "Singapore"

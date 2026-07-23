@@ -46,6 +46,7 @@ def _fetch_all(token: str, base_id: str, table: str) -> list[dict]:
 
 
 def _parse_date(value: str | None) -> datetime | None:
+    """Parse an Airtable date value, returning None when absent or invalid."""
     if not value:
         return None
     try:
@@ -55,6 +56,7 @@ def _parse_date(value: str | None) -> datetime | None:
 
 
 def _build_sheets() -> GoogleSheetsRepository:
+    """Build the destination Sheets repository from environment credentials."""
     sa = os.environ["GOOGLE_SERVICE_ACCOUNT_JSON"]
     spreadsheet_id = os.environ["SPREADSHEET_ID"]
     if os.path.exists(sa):
@@ -63,6 +65,7 @@ def _build_sheets() -> GoogleSheetsRepository:
 
 
 def migrate() -> dict[str, int]:
+    """Migrate Airtable jobs, contacts, and outreach into Google Sheets."""
     logging.basicConfig(level=logging.INFO)
     try:
         from dotenv import load_dotenv

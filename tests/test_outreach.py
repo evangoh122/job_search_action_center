@@ -5,6 +5,7 @@ from network.outreach import build_drafts
 
 
 def _objects() -> tuple[Job, Contact, Contact]:
+    """Provide a test helper for objects."""
     job = Job(
         id="j1",
         source="test",
@@ -25,11 +26,13 @@ def _objects() -> tuple[Job, Contact, Contact]:
 
 
 def test_build_drafts_returns_two():
+    """Verify the build drafts returns two scenario."""
     job, recruiter, manager = _objects()
     assert len(build_drafts(job, [recruiter, manager], "Alice", "I love Rust.")) == 2
 
 
 def test_subjects_differ_by_role_type():
+    """Verify the subjects differ by role type scenario."""
     job, recruiter, manager = _objects()
     drafts = build_drafts(job, [recruiter, manager], "Alice")
     r = next(d for d in drafts if d.role_type == "recruiter")
@@ -38,6 +41,7 @@ def test_subjects_differ_by_role_type():
 
 
 def test_bodies_contain_title_and_first_name():
+    """Verify the bodies contain title and first name scenario."""
     job, recruiter, manager = _objects()
     drafts = build_drafts(job, [recruiter, manager], "Alice")
     for d in drafts:
@@ -47,6 +51,7 @@ def test_bodies_contain_title_and_first_name():
 
 
 def test_empty_email_skipped():
+    """Verify the empty email skipped scenario."""
     job, _, manager = _objects()
     ghost = Contact(id="g", name="Ghost", company_canonical="Acme", role_type="recruiter", email="")
     drafts = build_drafts(job, [ghost, manager], "Alice")

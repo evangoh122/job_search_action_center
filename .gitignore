@@ -8,6 +8,9 @@ secrets/
 # Local data exports (contain personal contact info)
 airtable_export.json
 drive_export/
+job_log*.txt
+*applications*.csv
+job_comparison.md
 
 # Personal resume / CV files — never commit
 resume/

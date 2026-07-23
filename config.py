@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -22,6 +23,14 @@ DAILY_CAPS: dict[str, int] = {
 
 def load_targets(path: Path | None = None) -> dict[str, Any]:
     """Load Target-list.json and return its contents as a dict."""
-    resolved = path or _TARGETS_PATH
-    with resolved.open(encoding="utf-8") as f:
-        return json.load(f)
+    candidates = [path] if path is not None else [_TARGETS_PATH, Path(sys.prefix) / "Target-list.json"]
+    for resolved in candidates:
+        if resolved is not None and resolved.is_file():
+            with resolved.open(encoding="utf-8") as f:
+                return json.load(f)
+    searched = ", ".join(str(candidate) for candidate in candidates if candidate is not None)
+    raise FileNotFoundError(f"Target-list.json was not found in: {searched}")
+
+
+_SALARY_RULES = load_targets()["salary_rules"]
+MINIMUM_MONTHLY_SGD: float = float(_SALARY_RULES["minimum_monthly_sgd"])

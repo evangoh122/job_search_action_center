@@ -19,6 +19,7 @@ _PATH = Path(__file__).resolve().parent / "Notify-list.json"
 
 @lru_cache(maxsize=1)
 def _notify_token_sets() -> tuple[frozenset[str], ...]:
+    """Load and cache normalized company-token sets for notifications."""
     env = os.environ.get("NOTIFY_COMPANIES")
     if env is not None:
         names = [n for n in env.split(",")]
