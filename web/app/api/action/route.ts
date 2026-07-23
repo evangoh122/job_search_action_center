@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { AuthError, verifyRequestUser } from "@/lib/firebase-admin";
-import { getSheetsEnv, logEvent, logGap, saveApplication, saveWeeklyReview, updateJobStatus, type SheetsEnv } from "@/lib/sheets";
+import { getSheetsEnv, logEvent, logGap, saveApplication, saveLearning, saveWeeklyReview, updateJobStatus, type SheetsEnv } from "@/lib/sheets";
 
 /** Maps a client-supplied action name to the Sheets-writing function that performs it. */
 const actions: Record<string, (env: SheetsEnv, payload: unknown) => Promise<unknown>> = {
   logEvent,
   logGap,
   saveApplication,
+  saveLearning,
   saveWeeklyReview,
   updateJobStatus,
 };

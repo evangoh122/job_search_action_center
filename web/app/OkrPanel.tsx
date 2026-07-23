@@ -5,6 +5,8 @@ import { getFirebaseAuth } from "@/lib/firebase-client";
 
 // One OKR activity event as loaded from the "OKR Events" sheet.
 export type OkrEvent = { date: string; kind: string; count: number };
+// One week's learning-progress percentage from the "Learning" sheet.
+export type LearningWeek = { weekStart: string; percent: number };
 
 // The user's primary calendar; embedded so the recurring OKR cadence shows in-site.
 const CAL_SRC = "evangohsg@gmail.com";
@@ -51,6 +53,15 @@ const OBJECTIVES: { id: string; title: string; krs: string[] }[] = [
       "3h coding + 2h deep work/wk",
     ],
   },
+  {
+    id: "O5",
+    title: "Learning · Claude & AI",
+    krs: [
+      "Hit ≥80% of the week's learning plan",
+      "1 hands-on Claude/AI build per week",
+      "Turn 1 learning into a work-product",
+    ],
+  },
 ];
 
 // The weekly scorecard — each row maps to an EVENT_KINDS activity and a weekly target.
@@ -73,7 +84,7 @@ function weekStartSunday(d = new Date()): string {
   return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, "0")}-${String(x.getDate()).padStart(2, "0")}`;
 }
 
-export default function OkrPanel({ events }: { events: OkrEvent[] }) {
+export default function OkrPanel({ events, learning }: { events: OkrEvent[]; learning: LearningWeek[] }) {
   // Local increments logged this session, layered on top of the sheet's week-to-date counts,
   // so a tick shows instantly and survives a late-arriving events prop.
   const [logged, setLogged] = useState<Record<string, number>>({});
@@ -86,6 +97,44 @@ export default function OkrPanel({ events }: { events: OkrEvent[] }) {
     if (e.date >= weekStart) base[e.kind] = (base[e.kind] || 0) + (e.count || 0);
   }
   const current = (kind: string) => (base[kind] || 0) + (logged[kind] || 0);
+
+  // Learning progress for this week: the slider value overrides the saved value once touched,
+  // so a late-arriving `learning` prop still seeds the initial position.
+  const savedLearning = learning.find((l) => l.weekStart === weekStart)?.percent ?? null;
+  const [learnOverride, setLearnOverride] = useState<number | null>(null);
+  const [learnBusy, setLearnBusy] = useState(false);
+  const [learnSaved, setLearnSaved] = useState(false);
+  const learnPct = learnOverride ?? savedLearning ?? 0;
+
+  async function saveLearn() {
+    setLearnBusy(true);
+    setError(null);
+    setLearnSaved(false);
+    try {
+      const token = await getFirebaseAuth().currentUser?.getIdToken();
+      const res = await fetch("/api/action", {
+        method: "POST",
+        headers: {
+          authorization: token ? `Bearer ${token}` : "",
+          accept: "application/json",
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          action: "saveLearning",
+          payload: { weekStart, percent: learnPct, focus: "Claude & AI engineering" },
+        }),
+      });
+      if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(data.error || `HTTP ${res.status}`);
+      }
+      setLearnSaved(true);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not save learning progress");
+    } finally {
+      setLearnBusy(false);
+    }
+  }
 
   async function logOne(kind: string, timed?: boolean) {
     setBusy(kind);
@@ -154,6 +203,37 @@ export default function OkrPanel({ events }: { events: OkrEvent[] }) {
           })}
         </div>
         {error && <div className="interview-error" role="alert">{error}</div>}
+      </section>
+
+      <section className="paper">
+        <div className="section-head">
+          <div><p>LEARNING · CLAUDE &amp; AI</p><h2>Weekly learning progress</h2></div>
+          <span>WK OF {weekStart}</span>
+        </div>
+        <p className="today-empty">
+          Set how far through this week&apos;s learning plan you are. Saved per week, resets Sunday.
+        </p>
+        <div className="okr-learning">
+          <div className="okr-learning-head">
+            <span>Claude &amp; AI engineering</span>
+            <b>{learnPct}% <small>this week</small></b>
+          </div>
+          <div className={`okr-bar${learnPct >= 80 ? " complete" : ""}`}><span style={{ width: `${learnPct}%` }} /></div>
+          <input
+            type="range"
+            min={0}
+            max={100}
+            step={5}
+            value={learnPct}
+            aria-label="Weekly learning completion percent"
+            onChange={(e) => { setLearnOverride(Number(e.target.value)); setLearnSaved(false); }}
+          />
+          <div className="okr-learning-actions">
+            <button className="okr-tick" type="button" disabled={learnBusy} onClick={saveLearn}>
+              {learnBusy ? "Saving…" : learnSaved ? "✓ saved" : "Save this week"}
+            </button>
+          </div>
+        </div>
       </section>
 
       <section className="paper">

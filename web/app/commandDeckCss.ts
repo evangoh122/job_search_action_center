@@ -69,6 +69,13 @@ export const commandDeckCss = String.raw`
 .okr-obj h3{margin:0 0 6px;font:600 14px Fraunces,Georgia,serif;color:var(--ink900)}
 .okr-obj ul{margin:0;padding-left:18px}
 .okr-obj li{margin:.28rem 0;font-size:13px;line-height:1.45;color:#4a4438}
+.okr-bar.complete span{background:#3f7d5a}
+.okr-learning{display:flex;flex-direction:column;gap:10px;margin-top:12px}
+.okr-learning-head{display:flex;justify-content:space-between;align-items:baseline}
+.okr-learning-head b{font:600 22px Fraunces,Georgia,serif;color:var(--ink900)}
+.okr-learning-head small{font-size:12px;color:#8a8172;font-weight:400}
+.okr-learning input[type=range]{width:100%;accent-color:var(--brass);cursor:pointer}
+.okr-learning-actions{display:flex;justify-content:flex-end}
 .okr-cal-frame{width:100%;height:520px;border:1px solid #e7e0d2;border-radius:12px;margin-top:12px;background:#fff}
 @media (max-width:767px){.okr-scorecard,.okr-objectives{grid-template-columns:1fr}.okr-cal-frame{height:440px}}
 `;

@@ -5,12 +5,12 @@ import { useEffect, useState } from "react";
 import { commandDeckCss } from "./commandDeckCss";
 import InterviewPanel from "./InterviewPanel";
 import FitPanel from "./FitPanel";
-import OkrPanel, { type OkrEvent } from "./OkrPanel";
+import OkrPanel, { type OkrEvent, type LearningWeek } from "./OkrPanel";
 import { resumeFromPayload } from "@/lib/fit";
 import { getFirebaseAuth } from "@/lib/firebase-client";
 
 type SheetJob = Record<string, string>;
-type BootstrapPayload = { Jobs?: SheetJob[]; "OKR Events"?: SheetJob[] } & Record<string, unknown>;
+type BootstrapPayload = { Jobs?: SheetJob[]; "OKR Events"?: SheetJob[]; Learning?: SheetJob[] } & Record<string, unknown>;
 
 // The tracker lives in Google Sheets; all job/application/networking prep happens
 // directly in the embedded sheet (each section is its own worksheet tab).
@@ -28,6 +28,7 @@ export default function Home() {
   const [jobTitles, setJobTitles] = useState<string[]>([]);
   const [resumeText, setResumeText] = useState<string>("");
   const [okrEvents, setOkrEvents] = useState<OkrEvent[]>([]);
+  const [learning, setLearning] = useState<LearningWeek[]>([]);
 
   useEffect(() => {
     // Guards against a stale bootstrap response calling setState after the component has
@@ -60,6 +61,12 @@ export default function Home() {
             (payload["OKR Events"] || [])
               .map((row) => ({ date: (row.Date || "").trim(), kind: (row.Kind || "").trim(), count: Number(row.Count) || 0 }))
               .filter((e) => e.date && e.kind),
+          );
+          // Weekly learning-progress percentages seed the Learning slider.
+          setLearning(
+            (payload.Learning || [])
+              .map((row) => ({ weekStart: (row["Week Start"] || "").trim(), percent: Number(row.Percent) || 0 }))
+              .filter((l) => l.weekStart),
           );
           setSheetState("live");
         })
@@ -103,7 +110,7 @@ export default function Home() {
           onLoad={() => setSheetLoaded(true)}
         />
         {activeTab === 0 && !sheetLoaded && <div className="sheet-loading">Loading…</div>}
-        {activeTab === 1 && <OkrPanel events={okrEvents} />}
+        {activeTab === 1 && <OkrPanel events={okrEvents} learning={learning} />}
         {activeTab === 2 && <InterviewPanel roleContext={roleContext} />}
         {activeTab === 3 && <FitPanel resume={resumeText} />}
       </main>
