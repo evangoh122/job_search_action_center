@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+
 export interface SheetsEnv {
   SPREADSHEET_ID?: string;
   GOOGLE_SERVICE_ACCOUNT_JSON?: string;
@@ -85,11 +87,40 @@ function b64url(value: string | ArrayBuffer): string {
  * @returns A bearer access token valid for the Sheets and Docs APIs.
  * @throws {Error} If the service account is not configured, or if the token exchange request fails.
  */
+/**
+ * Loads the service account from either raw JSON (the deployed Secret Manager value) or a path to a
+ * key file (local dev / parity with the root `.env`, which stores `secrets/service-account.json`).
+ *
+ * A malformed value here would otherwise surface as a cryptic `JSON.parse` SyntaxError
+ * ("Expected property name…") on every Sheets call, so both failure modes are wrapped in a clear,
+ * "not configured" message that the API routes translate to a 503.
+ *
+ * @param raw - The `GOOGLE_SERVICE_ACCOUNT_JSON` value: inline JSON or a filesystem path.
+ * @returns The parsed service account credentials.
+ * @throws {Error} If a path can't be read, or the resolved content isn't valid service-account JSON.
+ */
+function loadServiceAccount(raw: string): ServiceAccount {
+  const trimmed = raw.trim();
+  let source = trimmed;
+  if (!trimmed.startsWith("{")) {
+    try {
+      source = readFileSync(trimmed, "utf8");
+    } catch {
+      throw new Error("Google Sheets service account is not configured: GOOGLE_SERVICE_ACCOUNT_JSON looks like a path but the key file could not be read");
+    }
+  }
+  try {
+    return JSON.parse(source) as ServiceAccount;
+  } catch {
+    throw new Error("Google Sheets service account is not configured: GOOGLE_SERVICE_ACCOUNT_JSON is not valid service-account JSON (or a readable key-file path)");
+  }
+}
+
 async function accessToken(env: SheetsEnv): Promise<string> {
   // Reuse the cached token until it's within 60s of expiry, to avoid signing a fresh JWT on every call.
   if (tokenCache && tokenCache.expiresAt > Date.now() + 60_000) return tokenCache.token;
   if (!env.GOOGLE_SERVICE_ACCOUNT_JSON) throw new Error("Google Sheets service account is not configured");
-  const account = JSON.parse(env.GOOGLE_SERVICE_ACCOUNT_JSON) as ServiceAccount;
+  const account = loadServiceAccount(env.GOOGLE_SERVICE_ACCOUNT_JSON);
   const now = Math.floor(Date.now() / 1000);
   // Build and sign a JWT assertion by hand (header.claim.signature) since the service account
   // flow only needs a single RS256-signed token, not a full OAuth client library.
