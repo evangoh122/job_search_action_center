@@ -14,6 +14,7 @@ def _fake_http_factory():
     search_result: list[dict[str, Any]] = []
 
     def http(method: str, url: str, body: dict | None) -> dict:
+        """Provide a test helper for http."""
         recorded.append((method, url, body))
         if url.endswith("/search"):
             return {"results": search_result}
@@ -24,6 +25,7 @@ def _fake_http_factory():
 
 
 def _make_job(**overrides: Any) -> Job:
+    """Provide a test helper for make job."""
     defaults = dict(
         id="job-001",
         source="test",
@@ -37,6 +39,7 @@ def _make_job(**overrides: Any) -> Job:
 
 
 def test_upsert_creates_when_absent():
+    """Verify the upsert creates when absent scenario."""
     http, recorded = _fake_http_factory()
     HubSpotRepository(token="tok", http=http).upsert_job(_make_job())
     method, url, body = recorded[1]
@@ -46,6 +49,7 @@ def test_upsert_creates_when_absent():
 
 
 def test_upsert_updates_when_present():
+    """Verify the upsert updates when present scenario."""
     http, recorded = _fake_http_factory()
     http.search_result.append({"id": "99"})  # type: ignore[attr-defined]
     HubSpotRepository(token="tok", http=http).upsert_job(_make_job())
@@ -55,6 +59,7 @@ def test_upsert_updates_when_present():
 
 
 def test_get_job_roundtrip():
+    """Verify the get job roundtrip scenario."""
     job = _make_job()
     http, _ = _fake_http_factory()
     http.search_result.append(  # type: ignore[attr-defined]
@@ -67,6 +72,7 @@ def test_get_job_roundtrip():
 
 
 def test_list_jobs_paginates():
+    """Verify the list jobs paginates scenario."""
     job_a = _make_job(id="a", dedupe_key="a")
     job_b = _make_job(id="b", dedupe_key="b")
     pages = [
@@ -79,6 +85,7 @@ def test_list_jobs_paginates():
     calls: list[str] = []
 
     def http(method: str, url: str, body: dict | None) -> dict:
+        """Provide a test helper for http."""
         calls.append(url)
         return pages[len(calls) - 1]
 
@@ -88,6 +95,7 @@ def test_list_jobs_paginates():
 
 
 def test_counter_delegates():
+    """Verify the counter delegates scenario."""
     http, _ = _fake_http_factory()
     repo = HubSpotRepository(token="tok", http=http, counter=SqliteRepository(":memory:"))
     repo.incr_action("apply", "d")

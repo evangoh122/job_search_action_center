@@ -20,6 +20,7 @@ logger = logging.getLogger("scrape_network")
 
 
 def _sheets() -> GoogleSheetsRepository:
+    """Build the destination networking tracker from configured credentials."""
     sa = os.environ["GOOGLE_SERVICE_ACCOUNT_JSON"]
     spreadsheet_id = os.environ["SPREADSHEET_ID"]
     if os.path.exists(sa):
@@ -28,6 +29,7 @@ def _sheets() -> GoogleSheetsRepository:
 
 
 def main() -> None:
+    """Scrape recent Gmail contacts and upsert them into the tracker."""
     logging.basicConfig(level=logging.INFO)
     try:
         from dotenv import load_dotenv

@@ -23,6 +23,7 @@ from exclusions import is_excluded_company
     ],
 )
 def test_excluded(name):
+    """Verify the excluded scenario."""
     assert is_excluded_company(name) is True
 
 
@@ -38,4 +39,5 @@ def test_excluded(name):
     ],
 )
 def test_not_excluded(name):
+    """Verify the not excluded scenario."""
     assert is_excluded_company(name) is False

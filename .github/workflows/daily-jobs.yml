@@ -25,7 +25,10 @@ jobs:
           cache: pip
 
       - name: Install
-        run: pip install -e .
+        run: pip install -e ".[dev]"
+
+      - name: Test before external integrations
+        run: python -m pytest -q
 
       - name: Pull jobs into the sheet
         env:
@@ -45,9 +48,22 @@ jobs:
           # Telegram digest of new roles to apply for.
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-          # Auto-apply stays dry-run unless this is explicitly set to "true".
-          AUTO_APPLY_LIVE: ${{ secrets.AUTO_APPLY_LIVE }}
+          # Scheduled CI is always dry-run. Live submission exists only in application.yml.
+          AUTO_APPLY_LIVE: "false"
+          AUTO_APPLY_BROWSER: "false"
         run: python runner.py
+
+      - name: Match LinkedIn feed posts to tracked vacancies
+        env:
+          APIFY_TOKEN: ${{ secrets.APIFY_TOKEN }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
+          APPLICANT_NAME: ${{ secrets.APPLICANT_NAME }}
+          NETWORKING_APPLICANT_PROOF: ${{ secrets.NETWORKING_APPLICANT_PROOF }}
+          NETWORKING_RELEVANCE: ${{ secrets.NETWORKING_RELEVANCE }}
+        run: >-
+          python -m linkedin_post_cli --max-jobs 5 --max-posts 5
+          --posted-limit week --output data/linkedin_post_matches.md
 
       - name: Refresh networking contacts from Gmail
         continue-on-error: true   # missing Gmail creds shouldn't fail the job pull
@@ -66,3 +82,19 @@ jobs:
         with:
           name: new-roles
           path: data/new_roles.json
+
+      - name: Upload LinkedIn post-match review packet
+        if: always() && hashFiles('data/linkedin_post_matches.md') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: linkedin-post-matches
+          path: data/linkedin_post_matches.md
+          retention-days: 14
+
+      - name: Upload outreach draft fallback queue
+        if: always() && hashFiles('data/outreach_drafts.jsonl') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: outreach-drafts
+          path: data/outreach_drafts.jsonl
+          retention-days: 14

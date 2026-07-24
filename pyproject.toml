@@ -10,10 +10,20 @@ dependencies = [
     "scikit-learn>=1.4",
     "google-auth>=2.0",
     "requests>=2.31",
+    "defusedxml>=0.7",
 ]
+
+[project.scripts]
+job-center = "runner:main"
+job-compare = "job_compare:main"
+job-apply = "application_cli:main"
+networking-drafts = "networking_cli:main"
+linkedin-post-matches = "linkedin_post_cli:main"
+resume-audit = "resume_audit_cli:main"
 
 [project.optional-dependencies]
 dev = ["pytest>=8.0"]
+browser = ["playwright>=1.50"]
 
 [tool.pytest.ini_options]
 pythonpath = ["."]
@@ -22,5 +32,32 @@ testpaths = ["tests"]
 [tool.pyright]
 extraPaths = ["."]
 
+[tool.setuptools]
+py-modules = [
+    "application_cli",
+    "backup_sheet",
+    "config",
+    "exclusions",
+    "extract_airtable",
+    "extract_greenhouse",
+    "job_compare",
+    "matching",
+    "networking_cli",
+    "linkedin_post_cli",
+    "migrate_airtable_to_sheets",
+    "models",
+    "notify_list",
+    "report",
+    "resume_audit_cli",
+    "routing",
+    "runner",
+    "salary",
+    "scoring",
+    "scrape_network",
+]
+
 [tool.setuptools.packages.find]
 include = ["apply*", "store*", "config*", "sources*", "network*", "scripts*", "resume*"]
+
+[tool.setuptools.data-files]
+"." = ["Target-list.json"]

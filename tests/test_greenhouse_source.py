@@ -9,6 +9,7 @@ _OLD = (datetime.now() - timedelta(days=60)).isoformat() + "Z"
 
 
 def _board_jobs():
+    """Provide a test helper for board jobs."""
     return {
         "https://boards-api.greenhouse.io/v1/boards/stripe/jobs?content=true": {"jobs": [
             {"title": "Head of Data Platform", "absolute_url": "https://x/1",
@@ -25,12 +26,15 @@ def _board_jobs():
 
 
 def _fake_get(mapping):
+    """Provide a test helper for fake get."""
     def get(url: str) -> dict:
+        """Provide a test helper for get."""
         return mapping.get(url, {"jobs": []})
     return get
 
 
 def test_filters_by_title_keyword():
+    """Verify filtering by title keyword."""
     src = GreenhouseSource(boards={"stripe": "Stripe"}, http_get=_fake_get(_board_jobs()))
     jobs = src.fetch()
     titles = {j.title for j in jobs}
@@ -39,6 +43,7 @@ def test_filters_by_title_keyword():
 
 
 def test_location_filter():
+    """Verify the location filter scenario."""
     src = GreenhouseSource(boards={"stripe": "Stripe"}, location_contains="Singapore",
                            http_get=_fake_get(_board_jobs()))
     titles = {j.title for j in src.fetch()}
@@ -47,6 +52,7 @@ def test_location_filter():
 
 
 def test_age_cutoff():
+    """Verify the age cutoff scenario."""
     src = GreenhouseSource(boards={"stripe": "Stripe"}, max_age_days=7,
                            http_get=_fake_get(_board_jobs()))
     titles = {j.title for j in src.fetch()}
@@ -54,6 +60,7 @@ def test_age_cutoff():
 
 
 def test_maps_fields_and_strips_html():
+    """Verify mapping fields and strips html."""
     src = GreenhouseSource(boards={"stripe": "Stripe"}, location_contains="Singapore",
                            http_get=_fake_get(_board_jobs()))
     job = next(j for j in src.fetch() if j.title == "Head of Data Platform")
@@ -66,7 +73,9 @@ def test_maps_fields_and_strips_html():
 
 
 def test_bad_board_is_skipped():
+    """Verify the bad board is skipped scenario."""
     def boom(url: str) -> dict:
+        """Provide a test helper for boom."""
         raise RuntimeError("404")
     src = GreenhouseSource(boards={"nope": "Nope"}, http_get=boom)
     assert src.fetch() == []  # failure logged, not raised

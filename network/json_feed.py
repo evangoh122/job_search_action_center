@@ -22,12 +22,16 @@ logger = logging.getLogger(__name__)
 
 
 class JsonFeedNotifier:
+    """Maintain a bounded local JSON feed of newly discovered roles."""
+
     def __init__(self, path: str = "data/new_roles.json", max_entries: int = 200) -> None:
+        """Configure the output path and retained entry limit."""
         self.path = Path(path)
         self.max_entries = max_entries
 
     @staticmethod
     def _entry(job: Job, first_seen: str) -> dict:
+        """Serialize one job into the public feed shape."""
         return {
             "title": job.title,
             "company": job.company_canonical,
@@ -41,6 +45,7 @@ class JsonFeedNotifier:
         }
 
     def _load(self) -> list[dict]:
+        """Load prior feed entries, returning an empty list on invalid data."""
         if not self.path.exists():
             return []
         try:

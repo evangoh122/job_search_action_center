@@ -1,0 +1,17 @@
+{
+  "targets": [
+    {
+      "contact_name": "CONTACT FULL NAME",
+      "contact_role": "CONTACT'S EXACT ROLE",
+      "company": "COMPANY",
+      "linkedin_url": "https://www.linkedin.com/in/PROFILE",
+      "email_address": "OPTIONAL_EMAIL@example.com",
+      "shared_context": "We both worked on regulated data platforms in Singapore.",
+      "company_signal": "the specific platform launch, article, talk, hiring initiative, or transformation they led",
+      "relevance": "That connects directly to the challenge I am working through: one precise sentence.",
+      "ask_topic": "one narrow question they are unusually qualified to answer",
+      "applicant_proof": "a specific X-Y-Z achievement with metric, scale, and method",
+      "target_job": "OPTIONAL EXACT JOB TITLE"
+    }
+  ]
+}
